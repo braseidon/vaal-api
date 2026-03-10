@@ -1,15 +1,18 @@
 # Vaal API
 
-PHP client for the [Path of Exile API](https://www.pathofexile.com/developer/docs) with OAuth 2.0 (PKCE), automatic rate limiting, and full endpoint coverage.
+[![Tests](https://github.com/braseidon/vaal-api/actions/workflows/tests.yml/badge.svg)](https://github.com/braseidon/vaal-api/actions/workflows/tests.yml)
+[![Latest Stable Version](https://img.shields.io/packagist/v/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
+[![License](https://img.shields.io/packagist/l/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
+[![PHP Version](https://img.shields.io/packagist/php-v/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
 
-Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) and [Guzzle](https://github.com/guzzle/guzzle). Works standalone or with Laravel.
+PHP client for GGG's Path of Exile API. Wraps both the OAuth 2.0 API and the public API with rate limiting, automatic token refresh, and typed DTOs.
 
-> This product isn't affiliated with or endorsed by Grinding Gear Games in any way.
+Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) and Guzzle.
 
 ## Requirements
 
 - PHP 8.2+
-- A [GGG developer application](https://www.pathofexile.com/developer/apps)
+- A GGG developer application ([register here](https://www.pathofexile.com/developer/apps))
 
 ## Installation
 
@@ -17,347 +20,319 @@ Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) a
 composer require braseidon/vaal-api
 ```
 
-## Quick Start
-
-```php
-use Braseidon\VaalApi\Auth\Token;
-use Braseidon\VaalApi\VaalApi;
-
-$token = Token::fromArray([
-    'access_token' => 'your-access-token',
-    'refresh_token' => 'your-refresh-token',
-    'expires_at' => time() + 86400,
-    'scope' => 'account:profile account:characters',
-]);
-
-$api = VaalApi::for($token, [
-    'client_id' => 'your-client-id',
-    'client_secret' => 'your-client-secret',
-    'user_agent' => [
-        'version' => '1.0.0',
-        'contact' => 'your@email.com',
-    ],
-]);
-
-// Get account profile
-$profile = $api->profile()->get();
-echo $profile->name; // "PlayerName#1234"
-echo $profile->uuid; // Stable account identifier
-
-// List characters (cache this - tightest rate limit)
-$characters = $api->characters()->list();
-foreach ($characters as $char) {
-    echo "{$char->name} - Level {$char->level} {$char->class}\n";
-}
-
-// Get full character data (200-300KB response)
-$character = $api->characters()->get('MyCharacterName');
-$character->equipment();     // Array of item data
-$character->passiveHashes(); // Allocated tree nodes
-$character->banditChoice();  // "Eramir", "Alira", etc.
-$character->raw();           // Full decoded response
-
-// List stash tabs
-$tabs = $api->stashes('Standard')->list();
-$tabDetail = $api->stashes('Standard')->get($tabs[0]->id);
-$items = $tabDetail->items();
-```
-
-## OAuth Flow
-
-Vaal API uses `league/oauth2-client` with GGG's required PKCE (S256) flow.
-
-```php
-use Braseidon\VaalApi\Auth\PathOfExileProvider;
-use Braseidon\VaalApi\Auth\Token;
-
-$provider = new PathOfExileProvider([
-    'clientId' => 'your-client-id',
-    'clientSecret' => 'your-client-secret',
-    'redirectUri' => 'https://yourapp.com/callback',
-]);
-
-// Step 1: Redirect to GGG (PKCE is automatic)
-$authUrl = $provider->getAuthorizationUrl([
-    'scope' => 'account:profile account:characters account:stashes account:leagues',
-]);
-$state = $provider->getState();
-$pkceCode = $provider->getPkceCode();
-// Store $state and $pkceCode in session, then redirect to $authUrl
-
-// Step 2: Handle callback (must happen within 30 seconds)
-$provider->setPkceCode($pkceCode); // Restore from session
-$accessToken = $provider->getAccessToken('authorization_code', [
-    'code' => $_GET['code'],
-]);
-
-$token = Token::fromAccessToken($accessToken);
-echo $token->username; // "PlayerName#1234"
-echo $token->sub;      // GGG account UUID
-// Store $token->toArray() in your database
-```
-
-## Token Refresh
-
-Access tokens last 28 days (confidential clients). Refresh tokens last 90 days.
-
-```php
-// Automatic refresh with callback
-$api = VaalApi::for($token, $config)
-    ->onTokenRefresh(function (Token $newToken) {
-        // Persist the new token - old refresh token is now invalid
-        $this->saveToken($newToken);
-    });
-
-// All API calls will auto-refresh when needed
-$profile = $api->profile()->get();
-```
-
-## Rate Limiting
-
-GGG enforces per-endpoint rate limits with multiple time windows. Vaal API handles this in two layers:
-
-1. **Pre-flight checks** - Before each request, the client checks tracked rate limit state from previous response headers. If a limit is about to be exceeded, the configured strategy is applied (sleep, throw, callback, or log). This prevents most 429s.
-2. **Retry middleware** - If a 429 (or 503) response slips through, Guzzle middleware automatically sleeps for the `Retry-After` duration and retries the request. After max retries, a `RateLimitException` is thrown.
-
-### Auto-Retry
-
-Enabled by default. The middleware reads the `Retry-After` header from 429/503 responses and retries automatically:
-
-```php
-$api = VaalApi::for($token, [
-    'rate_limit' => [
-        'auto_retry'  => true, // default
-        'max_retries' => 3,    // default
-    ],
-]);
-```
-
-Set `auto_retry` to `false` for fail-fast behavior (e.g. queue the job for later instead of blocking):
-
-```php
-'rate_limit' => ['auto_retry' => false]
-```
-
-### Safety Margin
-
-Treats rate limits as lower than reported to avoid hitting the actual limit:
-
-```php
-$api = VaalApi::for($token, [
-    'rate_limit' => [
-        'safety_margin' => 0.2, // 20% buffer (default)
-    ],
-]);
-// A 10-request limit becomes 8 effective requests
-```
-
-### Pre-flight Strategies
-
-What happens when the pre-flight check predicts a rate limit will be exceeded:
-
-```php
-// Sleep and continue (default)
-'rate_limit' => ['strategy' => 'sleep']
-
-// Throw RateLimitException
-'rate_limit' => ['strategy' => 'exception']
-
-// Call your handler
-'rate_limit' => [
-    'strategy' => 'callback',
-    'callback' => function (RateLimitResult $result) {
-        Log::warning("Rate limited: {$result->reason}");
-        dispatch(new RetryApiCallJob($result));
-    },
-]
-
-// Log warning and continue (development)
-'rate_limit' => [
-    'strategy' => 'log',
-    // Requires a PSR-3 logger in config
-]
-```
-
-### Known Rate Limits
-
-| Endpoint | Policy | Limits |
-|----------|--------|--------|
-| `GET /character` (list) | `character-list-request-limit` | 2/10s, 5/5min |
-| `GET /character/{name}` | `character-request-limit` | 5/10s, 30/5min |
-| `GET /account/leagues` | `league-request-limit` | 5/10s, 10/60s |
-| `GET /stash/{league}` (list) | `stash-list-request-limit` | 10/15s, 30/60s |
-| `GET /stash/{league}/{id}` | `stash-request-limit` | 15/10s, 30/5min |
-
-## Public API (No Auth)
-
-```php
-$public = VaalApi::public($config);
-
-// Leagues
-$leagues = $public->leagues()->list();
-
-// Characters (public profiles only)
-$chars = $public->characters('AccountName')->list();
-$passives = $public->characters('AccountName')->passives('CharName');
-$items = $public->characters('AccountName')->items('CharName');
-
-// Trade
-$results = $public->trade()->search('Standard', $query);
-$listings = $public->trade()->fetch($results->id, array_slice($results->result, 0, 10));
-$allItems = $public->trade()->items();  // CDN-cached reference data
-$allStats = $public->trade()->stats();
-```
-
-## All Endpoints
-
-### OAuth API (`api.pathofexile.com`)
-
-| Method | Resource | Scope |
-|--------|----------|-------|
-| `$api->profile()->get()` | Account profile | `account:profile` |
-| `$api->characters()->list()` | Character list | `account:characters` |
-| `$api->characters()->get($name)` | Character detail | `account:characters` |
-| `$api->stashes($league)->list()` | Stash tab list | `account:stashes` |
-| `$api->stashes($league)->get($id)` | Stash tab detail | `account:stashes` |
-| `$api->leagues()->list()` | League list | `service:leagues` |
-| `$api->leagues()->get($id)` | League detail | `service:leagues` |
-| `$api->leagues()->ladder($id)` | League ladder | `service:leagues:ladder` |
-| `$api->leagues()->eventLadder($id)` | Event ladder | `service:leagues:ladder` |
-| `$api->accountLeagues()->list()` | Account leagues | `account:leagues` |
-| `$api->leagueAccount($league)->get()` | Atlas passives | `account:league_accounts` |
-| `$api->itemFilters()->list()` | Item filter list | `account:item_filter` |
-| `$api->itemFilters()->get($id)` | Item filter detail | `account:item_filter` |
-| `$api->itemFilters()->create($data)` | Create filter | `account:item_filter` |
-| `$api->itemFilters()->update($id, $data)` | Update filter | `account:item_filter` |
-| `$api->pvpMatches()->list()` | PvP match list | `service:pvp_matches` |
-| `$api->pvpMatches()->get($id)` | PvP match detail | `service:pvp_matches` |
-| `$api->pvpMatches()->ladder($id)` | PvP ladder | `service:pvp_matches:ladder` |
-| `$api->guild()->stashes($league)->list()` | Guild stash list | `account:guild:stashes` |
-| `$api->guild()->stashes($league)->get($id)` | Guild stash detail | `account:guild:stashes` |
-| `$api->publicStashTabs()->get()` | Public stash river | `service:psapi` |
-| `$api->currencyExchange()->get()` | Currency rates | `service:cxapi` |
-
-### Public API (`www.pathofexile.com`)
-
-| Method | Endpoint |
-|--------|----------|
-| `$api->public()->leagues()->list()` | `/api/leagues` |
-| `$api->public()->characters($acct)->list()` | `/character-window/get-characters` |
-| `$api->public()->characters($acct)->passives($char)` | `/character-window/get-passive-skills` |
-| `$api->public()->characters($acct)->items($char)` | `/character-window/get-items` |
-| `$api->public()->stashTabs()->get()` | `/api/public-stash-tabs` |
-| `$api->public()->trade()->search($league, $query)` | `/api/trade/search/{league}` |
-| `$api->public()->trade()->fetch($id, $hashes)` | `/api/trade/fetch/{hashes}` |
-| `$api->public()->trade()->items()` | `/api/trade/data/items` |
-| `$api->public()->trade()->stats()` | `/api/trade/data/stats` |
-| `$api->public()->trade()->static()` | `/api/trade/data/static` |
-
-### Realms
-
-Most endpoints accept an optional realm parameter:
-
-```php
-use Braseidon\VaalApi\Enums\Realm;
-
-$api->characters(Realm::Xbox)->list();
-$api->stashes('Standard', Realm::Sony)->list();
-```
-
-## Configuration
-
-```php
-$config = [
-    'client_id' => 'your-client-id',
-    'client_secret' => 'your-client-secret',
-    'redirect_uri' => 'https://yourapp.com/callback',
-    'scopes' => ['account:profile', 'account:characters'],
-
-    'user_agent' => [
-        'version' => '1.0.0',       // Your app version
-        'contact' => 'you@email.com', // Required by GGG
-    ],
-
-    'rate_limit' => [
-        'strategy' => 'sleep',       // sleep|exception|callback|log (pre-flight)
-        'safety_margin' => 0.2,      // 0.0 to 1.0
-        'auto_retry' => true,        // Retry 429/503 via Guzzle middleware
-        'max_retries' => 3,          // Max retry attempts
-    ],
-
-    'timeout' => 30,                 // Request timeout in seconds
-    'default_realm' => null,         // null = PC
-    'base_url' => 'https://api.pathofexile.com',
-    'public_url' => 'https://www.pathofexile.com',
-];
-```
-
-## Laravel
-
-The service provider is auto-discovered. Publish the config:
+Laravel auto-discovers the service provider. To publish the config:
 
 ```bash
 php artisan vendor:publish --tag=vaal-api-config
 ```
 
-Set your `.env`:
+## Configuration
+
+Add these to your `.env`:
 
 ```env
 POE_CLIENT_ID=your-client-id
 POE_CLIENT_SECRET=your-client-secret
-POE_REDIRECT_URI=https://yourapp.com/auth/poe/callback
-POE_API_CONTACT=you@email.com
-POE_API_VERSION=1.0.0
+POE_REDIRECT_URI=https://yoursite.com/auth/poe/callback
+POE_API_CONTACT=you@example.com
+```
+
+### Rate limiting options
+
+```env
+# What to do when a rate limit is about to be exceeded
+# Options: sleep (default), exception, callback, log
 POE_RATE_LIMIT_STRATEGY=sleep
+
+# Margin to avoid riding the limit. 0.2 = treat a 10-request limit as 8.
 POE_RATE_LIMIT_SAFETY_MARGIN=0.2
+
+# Automatically retry on 429/503 responses
 POE_RATE_LIMIT_AUTO_RETRY=true
 POE_RATE_LIMIT_MAX_RETRIES=3
 ```
 
-Use the facade:
+Rate limiting works in two layers:
+
+1. **Pre-flight checks** track state from previous responses and predict whether the next request will exceed a limit. The configured strategy controls what happens: `sleep` waits it out, `exception` throws `RateLimitException`, `callback` calls your closure, and `log` logs a warning and continues anyway.
+
+2. **Retry middleware** catches 429/503 responses that slip through pre-flight checks (e.g. on cold start when no state exists). Reads the `Retry-After` header and retries automatically.
+
+### Rate limit strategy: callback
+
+The `callback` strategy lets you handle rate limits yourself. Pass a closure in the config array:
 
 ```php
-use Braseidon\VaalApi\Laravel\Facades\VaalApi;
+use Braseidon\VaalApi\Client\ApiClient;
+use Braseidon\VaalApi\RateLimit\RateLimitResult;
 
-$profile = VaalApi::withToken($token)->profile()->get();
+$client = new ApiClient([
+    ...config('vaal-api'),
+    'rate_limit' => [
+        'strategy' => 'callback',
+        'callback' => function (RateLimitResult $result) {
+            Log::warning("Rate limit approaching: {$result->reason}", [
+                'policy'  => $result->policy,
+                'wait'    => $result->waitSeconds,
+            ]);
+
+            // You decide what to do: sleep, queue the job for later, etc.
+            if ($result->waitSeconds < 5) {
+                sleep($result->waitSeconds);
+            } else {
+                throw new \RuntimeException("Rate limit too long: {$result->waitSeconds}s");
+            }
+        },
+    ],
+]);
 ```
 
-### Token Storage
+The `RateLimitResult` tells you everything you need: whether the request can proceed (`$result->canProceed`), how long to wait (`$result->waitSeconds`), which policy triggered it (`$result->policy`), and a human-readable reason (`$result->reason`).
 
-For Laravel apps, use the included `EloquentTokenStore`:
+## Usage
+
+### OAuth login flow
+
+GGG uses OAuth 2.0 with PKCE (S256). The provider handles PKCE automatically.
 
 ```php
-use Braseidon\VaalApi\Laravel\EloquentTokenStore;
+use Braseidon\VaalApi\Client\ApiClient;
+use Braseidon\VaalApi\Auth\Token;
 
-$store = new EloquentTokenStore(
-    modelClass: OauthAccount::class,
-    identifierColumn: 'provider_user_id',
-    dataColumn: 'provider_data',
+$client   = app(ApiClient::class);
+$provider = $client->getAuthProvider();
+
+// 1. Generate the authorization URL
+//    You can pass scope strings directly, or use the Scope enum:
+use Braseidon\VaalApi\Enums\Scope;
+
+$authUrl = $provider->getAuthorizationUrl([
+    'scope' => implode(' ', Scope::allAccount()), // all account scopes
+    // or pick specific ones:
+    // 'scope' => implode(' ', [Scope::Characters->value, Scope::Stashes->value]),
+]);
+
+// Store the PKCE verifier and state in the session
+session(['oauth2_pkce_code' => $provider->getPkceCode()]);
+session(['oauth2_state' => $provider->getState()]);
+
+return redirect($authUrl);
+```
+
+In your callback handler:
+
+```php
+// 2. Exchange the authorization code for a token
+$provider->setPkceCode(session('oauth2_pkce_code'));
+
+$accessToken = $provider->getAccessToken('authorization_code', [
+    'code' => $request->get('code'),
+]);
+
+// 3. Wrap it in the Vaal Token DTO
+$token = Token::fromAccessToken($accessToken);
+
+// $token->username  => "PlayerName#1234"
+// $token->sub       => account UUID (stable across name changes)
+
+// 4. Persist it however you want
+$user->update($token->toArray());
+```
+
+### Token helpers
+
+The `Token` class has a few methods for checking state before you make requests:
+
+```php
+$token->isExpired();              // has the access token expired?
+$token->needsRefresh();           // will it expire within 5 minutes? (buffer is configurable)
+$token->needsRefresh(600);        // will it expire within 10 minutes?
+$token->hasScope(Scope::Stashes); // did the user grant this scope?
+$token->hasScope('account:characters'); // string works too
+```
+
+The client handles token refresh automatically before each request, so you don't need to check `needsRefresh()` yourself for normal API calls. These are more useful for application logic - hiding UI elements when a scope wasn't granted, or skipping a queued job if the token is expired and has no refresh token.
+
+### Fetching characters
+
+```php
+use Braseidon\VaalApi\VaalApi;
+use Braseidon\VaalApi\Auth\Token;
+
+// Hydrate a token from your database
+$token = Token::fromArray($user->only([
+    'access_token', 'refresh_token', 'expires_at', 'scope', 'username', 'sub',
+]));
+
+$api = VaalApi::for($token, config('vaal-api'));
+
+// Register a callback so you don't lose the new token after a refresh.
+// GGG refresh tokens are single-use: once refreshed, the old one is dead.
+$api->onTokenRefresh(function (Token $newToken) use ($user) {
+    $user->update($newToken->toArray());
+});
+
+// List all characters (rate limit: 2 req/10s - tightest limit in the API)
+$characters = $api->characters()->list();
+
+foreach ($characters as $summary) {
+    echo $summary->name() . ' - Level ' . $summary->level() . ' ' . $summary->class() . "\n";
+    // Note: class() returns the ascendancy name, not the base class.
+    // "Necromancer", not "Witch". See gotchas below.
+}
+
+// Get full character data (equipment, passives, jewels - 200-320KB response)
+$character = $api->characters()->get('MyCharacterName');
+
+$character->level();
+$character->equipment();
+$character->passiveHashes();      // allocated node IDs
+$character->masteryEffects();     // node hash => effect hash
+$character->banditChoice();       // "kraityn", "alira", "oak", or "eramir"
+$character->alternateAscendancy(); // bloodline ascendancy if selected
+```
+
+### Fetching stash tabs
+
+Stash endpoints are PoE1 only and require a league name.
+
+```php
+// List all stash tabs in Mirage league
+$stashes = $api->stashes('Mirage')->list();
+
+foreach ($stashes as $tab) {
+    echo $tab->name() . ' (' . $tab->type() . ")\n";
+    // $tab->color() returns "ff0000", not "#ff0000" - no hash prefix
+}
+
+// Get a single stash tab with all its items (~207KB)
+$stash = $api->stashes('Mirage')->get($tab->id());
+
+foreach ($stash->items() as $item) {
+    // full item data
+}
+
+// Nested tabs (e.g. quad stash sub-tabs)
+$stash = $api->stashes('Mirage')->get($tabId, $substashId);
+```
+
+### Caching responses in Laravel
+
+The package doesn't include caching, so you wire it up however fits your app. Character list is the most important one to cache since it has the tightest rate limit.
+
+```php
+use Illuminate\Support\Facades\Cache;
+
+$characters = Cache::remember(
+    "poe:characters:{$user->id}",
+    now()->addMinutes(5),
+    fn () => $api->characters()->list(),
 );
 
-$token = $store->getToken($uuid);
-$store->saveToken($uuid, $newToken);
+// For stash tabs, longer TTL is usually fine
+$stashList = Cache::remember(
+    "poe:stashes:{$user->id}:Mirage",
+    now()->addMinutes(15),
+    fn () => $api->stashes('Mirage')->list(),
+);
 ```
 
-For non-Laravel apps, use `FileTokenStore`:
+### Public API (no auth)
 
 ```php
-use Braseidon\VaalApi\Auth\FileTokenStore;
+use Braseidon\VaalApi\VaalApi;
 
-$store = new FileTokenStore('/path/to/tokens');
-$store->saveToken('user-uuid', $token);
-$token = $store->getToken('user-uuid');
+$public = VaalApi::public(config('vaal-api'));
+
+$leagues = $public->leagues()->list();
+$tradeResults = $public->trade()->search('Mirage', $queryPayload);
+$items = $public->trade()->fetch($tradeResults->id(), $tradeResults->itemIds());
 ```
 
-## GGG API Gotchas
+### Realm support
 
-- **Character `class` is the ascendancy name**, not the base class. `"Necromancer"` not `"Witch"`.
-- **`current` field is absence-based.** Only present as `true` on the last-played character. Not `false` on others - the key is simply missing.
-- **Character list has the tightest rate limit.** 2 requests per 10 seconds. Cache aggressively.
-- **Authorization codes expire in 30 seconds.** Exchange them immediately.
-- **Refresh tokens are single-use.** After refresh, the old token is immediately invalid.
-- **Stash tab color has no `#` prefix.** `"ff0000"` not `"#ff0000"`.
-- **`metadata.public` is absence-based.** The key only exists when `true`.
+Most endpoints accept an optional realm. Defaults to PC when omitted.
+
+```php
+use Braseidon\VaalApi\Enums\Realm;
+
+$api->characters(Realm::Xbox)->list();
+$api->stashes('Mirage', Realm::Sony)->list();
+```
+
+### Error handling
+
+```php
+use Braseidon\VaalApi\Exceptions\RateLimitException;
+use Braseidon\VaalApi\Exceptions\AuthenticationException;
+use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
+use Braseidon\VaalApi\Exceptions\ServerException;
+
+try {
+    $character = $api->characters()->get('SomeName');
+} catch (RateLimitException $e) {
+    $e->getRetryAfter();        // seconds to wait
+    $e->getRateLimitResult();   // full RateLimitResult DTO
+} catch (AuthenticationException $e) {
+    // Token expired/invalid, or missing required scope
+} catch (ResourceNotFoundException $e) {
+    // Character doesn't exist or is private
+} catch (ServerException $e) {
+    // GGG's servers are having a bad day
+}
+```
+
+## Available endpoints
+
+### OAuth (authenticated)
+
+| Resource | Method | Description | Scope | Game |
+|----------|--------|-------------|-------|------|
+| `profile()` | `get()` | Account profile | `account:profile` | Both |
+| `characters()` | `list()` | All account characters | `account:characters` | Both |
+| `characters()` | `get($name)` | Full character detail | `account:characters` | Both |
+| `itemFilters()` | `list()`, `get()`, `create()`, `update()` | Item filters | `account:item_filter` | Both |
+| `leagues()` | `list()`, `get()` | League data | `service:leagues` | Both |
+| `leagues()` | `ladder()`, `eventLadder()` | League ladders | `service:leagues:ladder` | PoE1 |
+| `currencyExchange()` | Exchange market history | Currency rates | `service:cxapi` | Both |
+| `stashes($league)` | `list()` | All stash tabs in a league | `account:stashes` | PoE1 |
+| `stashes($league)` | `get($id, $substashId?)` | Single stash with items | `account:stashes` | PoE1 |
+| `accountLeagues()` | `list()` | Account's leagues | `account:leagues` | PoE1 |
+| `leagueAccount($league)` | `get()` | Atlas passives | `account:league_accounts` | PoE1 |
+| `guild()` | Guild stash endpoints | Guild data | `account:guild:stashes` | PoE1 |
+| `publicStashTabs()` | Public stash stream | River-style stream | `service:psapi` | PoE1 |
+| `pvpMatches()` | PvP match data | PvP | `service:pvp_matches` | PoE1 |
+
+### Public (no auth)
+
+| Resource | Method | Description | Game |
+|----------|--------|-------------|------|
+| `public()->leagues()` | `list()` | Public league list | Both |
+| `public()->characters($account)` | `list()` | Account's public characters | Both |
+| `public()->stashTabs()` | `list()` | Public stash tab stream | PoE1 |
+| `public()->trade()` | `search()`, `fetch()`, `items()`, `stats()`, `static()` | Trade API | Both |
+
+GGG's PoE2 API coverage is still limited. Endpoints marked "Both" accept `Realm::Poe2`, but the response structures have some PoE2-specific fields (and are missing some PoE1-specific ones like `masteryEffects` and `banditChoice`). See GGG's [API reference](https://www.pathofexile.com/developer/docs/api-resource-description) for the full field breakdown.
+
+> Only endpoints the author has access to have been tested. The others follow the same patterns and match GGG's docs, but haven't been verified against live responses. If something is off, open an issue.
+
+## GGG API gotchas
+
+Things that will bite you if you don't know about them.
+
+- **Character `class` is the ascendancy name**, not the base class. `"Necromancer"` not `"Witch"`. You need a lookup table to get the base class from the ascendancy.
+
+- **`current` field is absence-based.** Only present as `true` on the last-played character. The key is missing on all other characters, not set to `false`.
+
+- **Character list has the tightest rate limit.** 2 requests per 10 seconds. Cache this endpoint. The character detail endpoint is more generous at 5 req/10s.
+
+- **Authorization codes expire in 30 seconds.** Exchange them for a token immediately in your callback. If you have any slow middleware or redirects between receiving the code and exchanging it, you'll get failures.
+
+- **Refresh tokens are single-use.** After refreshing, the old refresh token is immediately invalid. If you don't persist the new token, you've lost access. Use `onTokenRefresh()` to handle this.
+
+- **Stash tab color has no `#` prefix.** `"ff0000"` not `"#ff0000"`. Prepend it yourself if you need it for CSS.
+
+- **`metadata.public` is absence-based.** The key only exists when `true`. Check with `isset()` or `?? false`, not strict equality.
 
 ## License
 
