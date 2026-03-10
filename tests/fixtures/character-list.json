@@ -1,0 +1,23 @@
+{
+    "characters": [
+        {
+            "id": "aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44",
+            "name": "VaalSlamDancer",
+            "realm": "pc",
+            "class": "Occultist",
+            "league": "Standard",
+            "level": 100,
+            "experience": 4250334444
+        },
+        {
+            "id": "ff66ee55dd44cc33bb22aa11ff66ee55dd44cc33bb22aa11ff66ee55dd44cc33",
+            "name": "MirageLeagueStarter",
+            "realm": "pc",
+            "class": "Ranger",
+            "league": "Mirage",
+            "level": 2,
+            "experience": 561,
+            "current": true
+        }
+    ]
+}

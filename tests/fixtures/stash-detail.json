@@ -1,0 +1,30 @@
+{
+    "id": "a1b2c3d4e5",
+    "n": "Currency",
+    "type": "CurrencyStash",
+    "i": 0,
+    "colour": "cc9900",
+    "metadata": {
+        "public": true
+    },
+    "items": [
+        {
+            "id": "item001",
+            "name": "",
+            "typeLine": "Chaos Orb",
+            "baseType": "Chaos Orb",
+            "stackSize": 42,
+            "maxStackSize": 20,
+            "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png"
+        },
+        {
+            "id": "item002",
+            "name": "",
+            "typeLine": "Exalted Orb",
+            "baseType": "Exalted Orb",
+            "stackSize": 7,
+            "maxStackSize": 20,
+            "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyAddModToRare.png"
+        }
+    ]
+}

@@ -1,0 +1,26 @@
+{
+    "id": "aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44",
+    "name": "VaalSlamDancer",
+    "realm": "pc",
+    "class": "Occultist",
+    "league": "Standard",
+    "level": 100,
+    "experience": 4250334444,
+    "equipment": [
+        {"id": "item1", "name": "Test Helm", "typeLine": "Hubris Circlet"}
+    ],
+    "inventory": [],
+    "rucksack": [],
+    "jewels": [],
+    "passives": {
+        "hashes": [4036, 4367, 12926],
+        "hashes_ex": [],
+        "mastery_effects": {
+            "56128": 42540
+        },
+        "skill_overrides": [],
+        "bandit_choice": "Eramir",
+        "pantheon_major": "TheBrineKing",
+        "pantheon_minor": "Abberath"
+    }
+}

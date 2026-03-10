@@ -1,0 +1,33 @@
+{
+    "character-list": {
+        "X-Rate-Limit-Policy": "character-list-request-limit",
+        "X-Rate-Limit-Rules": "Account",
+        "X-Rate-Limit-Account": "2:10:60,5:300:300",
+        "X-Rate-Limit-Account-State": "1:10:0,1:300:0"
+    },
+    "character-detail": {
+        "X-Rate-Limit-Policy": "character-request-limit",
+        "X-Rate-Limit-Rules": "Account",
+        "X-Rate-Limit-Account": "5:10:60,30:300:300",
+        "X-Rate-Limit-Account-State": "2:10:0,5:300:0"
+    },
+    "at-limit-window1": {
+        "X-Rate-Limit-Policy": "character-list-request-limit",
+        "X-Rate-Limit-Rules": "Account",
+        "X-Rate-Limit-Account": "2:10:60,5:300:300",
+        "X-Rate-Limit-Account-State": "2:10:0,1:300:0"
+    },
+    "at-limit-both": {
+        "X-Rate-Limit-Policy": "character-list-request-limit",
+        "X-Rate-Limit-Rules": "Account",
+        "X-Rate-Limit-Account": "2:10:60,5:300:300",
+        "X-Rate-Limit-Account-State": "2:10:0,5:300:0"
+    },
+    "penalized": {
+        "X-Rate-Limit-Policy": "character-list-request-limit",
+        "X-Rate-Limit-Rules": "Account",
+        "X-Rate-Limit-Account": "2:10:60,5:300:300",
+        "X-Rate-Limit-Account-State": "3:10:45,5:300:0",
+        "Retry-After": "45"
+    }
+}

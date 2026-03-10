@@ -1,0 +1,10 @@
+{
+    "id": "abc123def456",
+    "filter_name": "MF Strictness Filter",
+    "realm": "pc",
+    "description": "Custom loot filter for magic find builds",
+    "version": "3.28.0",
+    "type": "Normal",
+    "public": true,
+    "filter": "Show\n    Rarity Unique\n    SetFontSize 45\n    PlayAlertSound 6 300"
+}

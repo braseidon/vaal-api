@@ -1,0 +1,44 @@
+[
+    {
+        "id": "Standard",
+        "realm": "pc",
+        "url": "https://www.pathofexile.com/league/Standard",
+        "startAt": null,
+        "endAt": null,
+        "description": "The default game mode.",
+        "category": {},
+        "rules": []
+    },
+    {
+        "id": "Mirage",
+        "realm": "pc",
+        "url": "https://www.pathofexile.com/league/Mirage",
+        "startAt": "2026-03-07T20:00:00Z",
+        "endAt": "2026-06-08T20:00:00Z",
+        "description": "In this league, reflections of defeated enemies haunt the Atlas.",
+        "category": {
+            "id": "Mirage",
+            "current": true
+        },
+        "rules": []
+    },
+    {
+        "id": "Hardcore Mirage",
+        "realm": "pc",
+        "url": "https://www.pathofexile.com/league/Hardcore+Mirage",
+        "startAt": "2026-03-07T20:00:00Z",
+        "endAt": "2026-06-08T20:00:00Z",
+        "description": "A shared league with Hardcore and Mirage rules.",
+        "category": {
+            "id": "Mirage",
+            "current": true
+        },
+        "rules": [
+            {
+                "id": "Hardcore",
+                "name": "Hardcore",
+                "description": "A character killed in Hardcore is moved to Standard."
+            }
+        ]
+    }
+]
