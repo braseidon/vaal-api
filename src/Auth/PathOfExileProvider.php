@@ -18,6 +18,16 @@ use Psr\Http\Message\ResponseInterface;
 class PathOfExileProvider extends AbstractProvider
 {
     /**
+     * Application version for User-Agent header.
+     */
+    protected string $userAgentVersion = '1.0.0';
+
+    /**
+     * Contact email for User-Agent header.
+     */
+    protected string $userAgentContact = '';
+
+    /**
      * Authorization URL for GGG's OAuth flow.
      *
      * @return string
@@ -80,6 +90,49 @@ class PathOfExileProvider extends AbstractProvider
     }
 
     /**
+     * Build the User-Agent string per GGG requirements.
+     *
+     * Format: OAuth {client_id}/{version} (contact: {email})
+     */
+    protected function buildUserAgent(): string
+    {
+        $clientId = $this->clientId ?? 'unknown';
+
+        return "OAuth {$clientId}/{$this->userAgentVersion} (contact: {$this->userAgentContact})";
+    }
+
+    /**
+     * Allow passing headers to Guzzle's client constructor.
+     *
+     * This ensures our User-Agent overrides Guzzle's default (GuzzleHttp/7),
+     * which Cloudflare blocks on GGG's endpoints.
+     *
+     * @param array $options Provider constructor options
+     * @return array<string>
+     */
+    protected function getAllowedClientOptions(array $options): array
+    {
+        return array_merge(parent::getAllowedClientOptions($options), ['headers']);
+    }
+
+    /**
+     * {@inheritDoc}
+     *
+     * @param array $options Provider options including clientId, userAgentVersion, userAgentContact
+     * @param array $collaborators Collaborator overrides
+     */
+    public function __construct(array $options = [], array $collaborators = [])
+    {
+        // Inject our headers into options so Guzzle picks them up via getAllowedClientOptions
+        $options['headers'] = $options['headers'] ?? [];
+        $options['headers']['User-Agent'] = $options['headers']['User-Agent']
+            ?? "OAuth " . ($options['clientId'] ?? 'unknown') . "/" . ($options['userAgentVersion'] ?? '1.0.0') . " (contact: " . ($options['userAgentContact'] ?? '') . ")";
+        $options['headers']['Accept'] = $options['headers']['Accept'] ?? 'application/json';
+
+        parent::__construct($options, $collaborators);
+    }
+
+    /**
      * Default request headers.
      *
      * @return array<string, string>
@@ -88,6 +141,7 @@ class PathOfExileProvider extends AbstractProvider
     {
         return [
             'Accept' => 'application/json',
+            'User-Agent' => $this->buildUserAgent(),
         ];
     }
 
