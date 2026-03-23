@@ -52,6 +52,9 @@ class ApiClient
     /** @var array<string, string> Maps URL patterns to known policy names */
     private array $policyMap = [];
 
+    /** @var array|null Rate limit headers from the last API response */
+    private ?array $lastRateLimitHeaders = null;
+
     private const MAX_RETRIES = 3;
 
     /**
@@ -409,6 +412,19 @@ class ApiClient
         return $this->token;
     }
 
+    /**
+     * Get rate limit headers from the last API response.
+     *
+     * Returns a flat array of GGG rate limit headers (policy, rules, state),
+     * or null if the last response had no rate limit headers.
+     *
+     * @return array<string, string>|null
+     */
+    public function getLastRateLimitHeaders(): ?array
+    {
+        return $this->lastRateLimitHeaders;
+    }
+
     // ---------------------------------------------------------------
     // Internal
     // ---------------------------------------------------------------
@@ -452,8 +468,14 @@ class ApiClient
         // Record rate limit state from response
         $rateLimitPolicy = $response->rateLimitPolicy();
         if ($rateLimitPolicy !== null) {
-            $this->rateLimiter->recordResponse($response->raw()->getHeaders());
+            $responseHeaders = $response->raw()->getHeaders();
+            $this->rateLimiter->recordResponse($responseHeaders);
             $this->policyMap[$this->normalizePathForPolicy($path)] = $rateLimitPolicy->name;
+
+            // Store rate limit headers for external consumers
+            $this->lastRateLimitHeaders = $this->extractRateLimitHeaders($responseHeaders);
+        } else {
+            $this->lastRateLimitHeaders = null;
         }
 
         // Handle error responses (429s already retried by middleware)
@@ -713,6 +735,29 @@ class ApiClient
         }
 
         return $path;
+    }
+
+    /**
+     * Extract rate limit headers from a response.
+     *
+     * Filters to only X-Rate-Limit-* and Retry-After headers.
+     *
+     * @param array $headers All response headers
+     * @return array<string, string> Rate limit headers with string values
+     */
+    private function extractRateLimitHeaders(array $headers): array
+    {
+        $rateLimitHeaders = [];
+
+        foreach ($headers as $name => $values) {
+            $lower = strtolower($name);
+
+            if (str_starts_with($lower, 'x-rate-limit') || $lower === 'retry-after') {
+                $rateLimitHeaders[$name] = is_array($values) ? implode(',', $values) : (string) $values;
+            }
+        }
+
+        return $rateLimitHeaders;
     }
 
     /**
