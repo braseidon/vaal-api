@@ -7,7 +7,7 @@
 
 PHP client for GGG's Path of Exile API. Wraps both the OAuth 2.0 API and the public API with rate limiting, automatic token refresh, and typed DTOs.
 
-Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) and Guzzle.
+Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) and Guzzle. Used in production for my project [MagicFind.gg](https://magicfind.gg).
 
 ## Requirements
 
