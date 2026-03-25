@@ -2,7 +2,7 @@
 
 [![Tests](https://github.com/braseidon/vaal-api/actions/workflows/tests.yml/badge.svg)](https://github.com/braseidon/vaal-api/actions/workflows/tests.yml)
 [![Latest Stable Version](https://img.shields.io/packagist/v/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
-[![License](https://img.shields.io/packagist/l/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
 
 PHP client for GGG's Path of Exile API. Wraps both the OAuth 2.0 API and the public API with rate limiting, automatic token refresh, and typed DTOs.
