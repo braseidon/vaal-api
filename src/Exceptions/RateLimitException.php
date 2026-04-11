@@ -20,10 +20,11 @@ class RateLimitException extends VaalApiException
      */
     public function __construct(
         protected RateLimitResult $rateLimitResult,
-        string      $message      = '',
-        int         $code         = 429,
-        ?\Throwable $previous     = null,
-        array       $responseBody = [],
+        string      $message          = '',
+        int         $code             = 429,
+        ?\Throwable $previous         = null,
+        array       $responseBody     = [],
+        ?array      $rateLimitHeaders = null,
     ) {
         if ($message === '') {
             $message = sprintf(
@@ -33,7 +34,7 @@ class RateLimitException extends VaalApiException
             );
         }
 
-        parent::__construct($message, $code, $previous, $responseBody);
+        parent::__construct($message, $code, $previous, $responseBody, $rateLimitHeaders);
     }
 
     /**

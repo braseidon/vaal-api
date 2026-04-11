@@ -20,6 +20,7 @@ class VaalApiException extends RuntimeException
         int        $code         = 0,
         ?\Throwable $previous    = null,
         protected array $responseBody = [],
+        protected ?array $rateLimitHeaders = null,
     ) {
         parent::__construct($message, $code, $previous);
     }
@@ -32,5 +33,15 @@ class VaalApiException extends RuntimeException
     public function getResponseBody(): array
     {
         return $this->responseBody;
+    }
+
+    /**
+     * Rate limit headers from the API response, if available.
+     *
+     * @return array<string, string>|null
+     */
+    public function getRateLimitHeaders(): ?array
+    {
+        return $this->rateLimitHeaders;
     }
 }

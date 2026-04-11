@@ -50,9 +50,9 @@ readonly class StashTabSummary
         }
 
         return new self(
-            id:       $data['id'],
+            id:       $data['id'] ?? '',
             name:     $data['n'] ?? $data['name'] ?? '',
-            type:     $data['type'],
+            type:     $data['type'] ?? 'Unknown',
             index:    $data['i'] ?? $data['index'] ?? 0,
             color:    $data['colour'] ?? $data['color'] ?? null,
             folder:   $data['folder'] ?? null,

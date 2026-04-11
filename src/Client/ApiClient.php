@@ -665,16 +665,19 @@ class ApiClient
             ?? $data['message']
             ?? "HTTP {$status}";
 
+        $rlHeaders = $this->lastRateLimitHeaders;
+
         match (true) {
             $status === 429                  => throw new RateLimitException(
                 RateLimitResult::wait($policy, (int) ($response->header('Retry-After') ?? 60), $message),
                 responseBody: $data,
+                rateLimitHeaders: $rlHeaders,
             ),
-            $status === 401, $status === 403 => throw new AuthenticationException($message, $status, responseBody: $data),
-            $status === 404                  => throw new ResourceNotFoundException($message, $status, responseBody: $data),
-            $status >= 400 && $status < 500  => throw new InvalidRequestException($message, $status, responseBody: $data),
-            $status >= 500                   => throw new ServerException($message, $status, responseBody: $data),
-            default                          => throw new VaalApiException($message, $status, responseBody: $data),
+            $status === 401, $status === 403 => throw new AuthenticationException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status === 404                  => throw new ResourceNotFoundException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 400 && $status < 500  => throw new InvalidRequestException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 500                   => throw new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            default                          => throw new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
         };
     }
 
