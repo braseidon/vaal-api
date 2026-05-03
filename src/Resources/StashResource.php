@@ -43,7 +43,7 @@ class StashResource
 
         return array_map(
             fn (array $tab) => StashTabSummary::fromArray($tab),
-            $response->data()
+            $response->data()['stashes'] ?? []
         );
     }
 

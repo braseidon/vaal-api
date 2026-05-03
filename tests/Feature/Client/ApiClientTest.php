@@ -284,6 +284,22 @@ class ApiClientTest extends TestCase
         $this->assertInstanceOf(\Braseidon\VaalApi\Resources\StashResource::class, $stash);
     }
 
+    public function testStashListUnwrapsStashesKey(): void
+    {
+        // GGG returns {"stashes": [...]} — list() must unwrap the key, not iterate the response root
+        $body = file_get_contents(__DIR__ . '/../../fixtures/stash-list.json');
+
+        $client = $this->createClientWithMock([new Response(200, [], $body)]);
+        $client->withToken($this->createValidToken());
+
+        $tabs = $client->stashes('Standard')->list();
+
+        $this->assertCount(3, $tabs);
+        $this->assertSame('a1b2c3d4e5', $tabs[0]->id);
+        $this->assertSame('Currency', $tabs[0]->name);
+        $this->assertSame('Maps', $tabs[1]->name);
+    }
+
     // ---------------------------------------------------------------
     // User-Agent
     // ---------------------------------------------------------------
