@@ -300,6 +300,34 @@ class ApiClientTest extends TestCase
         $this->assertSame('Maps', $tabs[1]->name);
     }
 
+    public function testStashGetUnwrapsStashKey(): void
+    {
+        // GGG returns {"stash": {...}} — get() must unwrap the key so items/children land at the top level
+        $body = json_encode([
+            'stash' => [
+                'id' => 'abc1234567',
+                'name' => 'Uniques',
+                'type' => 'UniqueStash',
+                'children' => [
+                    ['id' => 'child001', 'parent' => 'abc1234567', 'type' => 'UniqueStash', 'metadata' => ['items' => 5]],
+                    ['id' => 'child002', 'parent' => 'abc1234567', 'type' => 'UniqueStash', 'metadata' => ['items' => 12]],
+                ],
+                'items' => [],
+            ],
+        ]);
+
+        $client = $this->createClientWithMock([new Response(200, [], $body)]);
+        $client->withToken($this->createValidToken());
+
+        $tab = $client->stashes('Standard')->get('abc1234567');
+
+        $this->assertSame('abc1234567', $tab->id());
+        $this->assertSame('Uniques', $tab->name());
+        $this->assertSame('UniqueStash', $tab->type());
+        $this->assertCount(2, $tab->raw()['children']);
+        $this->assertSame('child001', $tab->raw()['children'][0]['id']);
+    }
+
     // ---------------------------------------------------------------
     // User-Agent
     // ---------------------------------------------------------------

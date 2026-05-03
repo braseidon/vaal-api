@@ -71,7 +71,7 @@ class StashResource
 
         $response = $this->client->get($path);
 
-        return StashTab::fromArray($response->data());
+        return StashTab::fromArray($response->data()['stash'] ?? []);
     }
 
     /**
