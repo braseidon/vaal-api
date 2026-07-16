@@ -3,11 +3,13 @@
 namespace Braseidon\VaalApi\Resources\Public;
 
 use Braseidon\VaalApi\Client\ApiResponse;
+use Braseidon\VaalApi\Exceptions\ConnectionException;
 use Braseidon\VaalApi\Exceptions\InvalidRequestException;
 use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Exceptions\ServerException;
 use Braseidon\VaalApi\Exceptions\VaalApiException;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\TransferException;
 
 /**
  * Client for GGG's public API endpoints (no OAuth required).
@@ -25,15 +27,20 @@ class PublicApiClient
      *     user_agent?: array{version?: string, contact?: string},
      *     public_url?: string,
      *     timeout?: int,
+     *     connect_timeout?: int,
      * } $config
      */
     public function __construct(
         private readonly array $config = [],
     ) {
+        // Timeouts must stay well under PHP's max_execution_time (typically 30s)
+        // so a hung GGG request raises a catchable ConnectionException instead
+        // of a fatal error.
         $this->httpClient = new GuzzleClient([
-            'base_uri'    => $this->config['public_url'] ?? 'https://www.pathofexile.com',
-            'timeout'     => $this->config['timeout'] ?? 30,
-            'http_errors' => false,
+            'base_uri'        => $this->config['public_url'] ?? 'https://www.pathofexile.com',
+            'timeout'         => $this->config['timeout'] ?? 12,
+            'connect_timeout' => $this->config['connect_timeout'] ?? 5,
+            'http_errors'     => false,
             'headers'     => [
                 'Accept'     => 'application/json',
                 'User-Agent' => $this->buildUserAgent(),
@@ -93,9 +100,16 @@ class PublicApiClient
      */
     public function get(string $path, array $query = []): ApiResponse
     {
-        $response = new ApiResponse(
-            $this->httpClient->request('GET', ltrim($path, '/'), ['query' => $query])
-        );
+        try {
+            $response = new ApiResponse(
+                $this->httpClient->request('GET', ltrim($path, '/'), ['query' => $query])
+            );
+        } catch (TransferException $e) {
+            throw new ConnectionException(
+                'GGG API did not respond: ' . $e->getMessage(),
+                previous: $e,
+            );
+        }
 
         if (!$response->isSuccessful()) {
             $this->handleError($response);
@@ -115,9 +129,16 @@ class PublicApiClient
      */
     public function post(string $path, array $data = []): ApiResponse
     {
-        $response = new ApiResponse(
-            $this->httpClient->request('POST', ltrim($path, '/'), ['json' => $data])
-        );
+        try {
+            $response = new ApiResponse(
+                $this->httpClient->request('POST', ltrim($path, '/'), ['json' => $data])
+            );
+        } catch (TransferException $e) {
+            throw new ConnectionException(
+                'GGG API did not respond: ' . $e->getMessage(),
+                previous: $e,
+            );
+        }
 
         if (!$response->isSuccessful()) {
             $this->handleError($response);

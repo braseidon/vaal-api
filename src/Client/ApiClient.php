@@ -8,6 +8,7 @@ use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\RateLimitStrategy;
 use Braseidon\VaalApi\Enums\Scope;
 use Braseidon\VaalApi\Exceptions\AuthenticationException;
+use Braseidon\VaalApi\Exceptions\ConnectionException;
 use Braseidon\VaalApi\Exceptions\InvalidRequestException;
 use Braseidon\VaalApi\Exceptions\RateLimitException;
 use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
@@ -29,6 +30,7 @@ use Braseidon\VaalApi\Resources\PvpMatchResource;
 use Braseidon\VaalApi\Resources\StashResource;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
+use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use Psr\Http\Message\RequestInterface;
@@ -66,6 +68,7 @@ class ApiClient
      *     user_agent?: array{version?: string, contact?: string},
      *     rate_limit?: array{strategy?: string, safety_margin?: float, callback?: Closure, auto_retry?: bool, max_retries?: int},
      *     timeout?: int,
+     *     connect_timeout?: int,
      *     default_realm?: string|null,
      *     base_url?: string,
      *     public_url?: string,
@@ -84,11 +87,15 @@ class ApiClient
             $stack->push($this->buildRetryMiddleware(), 'retry_429');
         }
 
+        // Timeouts must stay well under PHP's max_execution_time (typically 30s)
+        // so a hung GGG request raises a catchable ConnectionException instead
+        // of a fatal error.
         $this->httpClient = new GuzzleClient([
-            'handler'     => $stack,
-            'base_uri'    => $this->config['base_url'] ?? 'https://api.pathofexile.com',
-            'timeout'     => $this->config['timeout'] ?? 30,
-            'http_errors' => false,
+            'handler'         => $stack,
+            'base_uri'        => $this->config['base_url'] ?? 'https://api.pathofexile.com',
+            'timeout'         => $this->config['timeout'] ?? 12,
+            'connect_timeout' => $this->config['connect_timeout'] ?? 5,
+            'http_errors'     => false,
         ]);
     }
 
@@ -461,9 +468,17 @@ class ApiClient
             $this->buildHeaders(),
         );
 
-        $response = new ApiResponse(
-            $this->httpClient->request($method, ltrim($path, '/'), $options)
-        );
+        try {
+            $response = new ApiResponse(
+                $this->httpClient->request($method, ltrim($path, '/'), $options)
+            );
+        } catch (TransferException $e) {
+            // Never got a response — connect/read timeout or network failure.
+            throw new ConnectionException(
+                'GGG API did not respond: ' . $e->getMessage(),
+                previous: $e,
+            );
+        }
 
         // Record rate limit state from response
         $rateLimitPolicy = $response->rateLimitPolicy();

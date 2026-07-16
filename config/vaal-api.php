@@ -81,8 +81,9 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'timeout'       => (int) env('POE_API_TIMEOUT', 30),
-    'default_realm' => env('POE_DEFAULT_REALM'),
+    'timeout'         => (int) env('POE_API_TIMEOUT', 12),
+    'connect_timeout' => (int) env('POE_API_CONNECT_TIMEOUT', 5),
+    'default_realm'   => env('POE_DEFAULT_REALM'),
 
     /*
     |--------------------------------------------------------------------------
