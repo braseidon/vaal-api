@@ -473,4 +473,39 @@ class ApiClientTest extends TestCase
 
         $this->assertTrue($response->isSuccessful());
     }
+
+    // ---------------------------------------------------------------
+    // Timeout Configuration
+    // ---------------------------------------------------------------
+
+    public function testHttpClientDefaultsToShortTimeouts(): void
+    {
+        // Guzzle's default timeout (0 = unlimited) sits at/above PHP's 30s
+        // max_execution_time, so a hung GGG request fatals instead of raising
+        // a catchable Guzzle exception. Timeouts must stay well under 30s.
+        $client = new ApiClient(['client_id' => 'test']);
+
+        $reflection = new \ReflectionClass($client);
+        $prop       = $reflection->getProperty('httpClient');
+        $httpClient = $prop->getValue($client);
+
+        $this->assertSame(12, $httpClient->getConfig('timeout'));
+        $this->assertSame(5, $httpClient->getConfig('connect_timeout'));
+    }
+
+    public function testHttpClientHonorsConfiguredTimeouts(): void
+    {
+        $client = new ApiClient([
+            'client_id'       => 'test',
+            'timeout'         => 20,
+            'connect_timeout' => 8,
+        ]);
+
+        $reflection = new \ReflectionClass($client);
+        $prop       = $reflection->getProperty('httpClient');
+        $httpClient = $prop->getValue($client);
+
+        $this->assertSame(20, $httpClient->getConfig('timeout'));
+        $this->assertSame(8, $httpClient->getConfig('connect_timeout'));
+    }
 }
