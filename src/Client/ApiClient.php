@@ -49,6 +49,7 @@ class ApiClient
     private RateLimiter         $rateLimiter;
     private ?Token              $token          = null;
     private ?Closure            $onTokenRefresh = null;
+    private ?Closure            $onTokenRefreshFailure = null;
     private ?PathOfExileProvider $authProvider   = null;
 
     /** @var array<string, string> Maps URL patterns to known policy names */
@@ -129,6 +130,27 @@ class ApiClient
     public function onTokenRefresh(Closure $callback): self
     {
         $this->onTokenRefresh = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Register a callback for when a token refresh is rejected.
+     *
+     * Receives the ORIGINAL exception, before it is wrapped in an
+     * AuthenticationException, so the caller can read the provider's status
+     * code and response body. An IdentityProviderException carries GGG's HTTP
+     * status as its exception code.
+     *
+     * The callback's own exceptions are suppressed: a failing listener must not
+     * replace the refresh failure the caller is about to be told about.
+     *
+     * @param Closure(\Exception): void $callback
+     * @return self
+     */
+    public function onTokenRefreshFailure(Closure $callback): self
+    {
+        $this->onTokenRefreshFailure = $callback;
 
         return $this;
     }
@@ -364,7 +386,8 @@ class ApiClient
     /**
      * Refresh the current token and return the new one.
      *
-     * Triggers the onTokenRefresh callback if registered.
+     * Triggers the onTokenRefresh callback on success, or the
+     * onTokenRefreshFailure callback when the provider rejects the refresh.
      *
      * @return Token The new token
      *
@@ -391,6 +414,14 @@ class ApiClient
 
             return $newToken;
         } catch (\Exception $e) {
+            if ($this->onTokenRefreshFailure !== null) {
+                try {
+                    ($this->onTokenRefreshFailure)($e);
+                } catch (\Throwable) {
+                    // A failing listener must not mask the refresh failure
+                }
+            }
+
             throw new AuthenticationException(
                 'Token refresh failed: ' . $e->getMessage(),
                 0,

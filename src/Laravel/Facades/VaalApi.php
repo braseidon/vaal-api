@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Facade;
  *
  * @method static ApiClient withToken(\Braseidon\VaalApi\Auth\Token $token)
  * @method static ApiClient onTokenRefresh(\Closure $callback)
+ * @method static ApiClient onTokenRefreshFailure(\Closure $callback)
  * @method static \Braseidon\VaalApi\Resources\ProfileResource profile()
  * @method static \Braseidon\VaalApi\Resources\CharacterResource characters(?\Braseidon\VaalApi\Enums\Realm $realm = null)
  * @method static \Braseidon\VaalApi\Resources\StashResource stashes(string $league, ?\Braseidon\VaalApi\Enums\Realm $realm = null)

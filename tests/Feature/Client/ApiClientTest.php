@@ -14,6 +14,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Psr7\Response;
+use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use PHPUnit\Framework\TestCase;
 
 class ApiClientTest extends TestCase
@@ -396,6 +397,127 @@ class ApiClientTest extends TestCase
         $this->expectExceptionMessage('No token set');
 
         $client->refreshToken();
+    }
+
+    // ---------------------------------------------------------------
+    // Token Refresh Failure Callback
+    // ---------------------------------------------------------------
+
+    /**
+     * Build a client whose OAuth provider answers a refresh with $status.
+     *
+     * @param int $status HTTP status the token endpoint returns
+     * @return ApiClient
+     */
+    private function createClientWithFailingRefresh(int $status): ApiClient
+    {
+        $client = new ApiClient(['client_id' => 'test-client']);
+
+        $client->getAuthProvider()->setHttpClient(new GuzzleClient([
+            'handler' => HandlerStack::create(new MockHandler([
+                new Response(
+                    $status,
+                    ['Content-Type' => 'application/json'],
+                    json_encode(['error_description' => "Refresh token doesn't exist or has expired"]),
+                ),
+            ])),
+            'http_errors' => false,
+        ]));
+
+        $client->withToken($this->createValidToken());
+
+        return $client;
+    }
+
+    public function testRefreshFailureCallbackReceivesTheOriginalException(): void
+    {
+        $client   = $this->createClientWithFailingRefresh(400);
+        $received = null;
+
+        $client->onTokenRefreshFailure(function (\Exception $e) use (&$received): void {
+            $received = $e;
+        });
+
+        try {
+            $client->refreshToken();
+            $this->fail('refreshToken() should have thrown');
+        } catch (AuthenticationException) {
+            // expected
+        }
+
+        $this->assertInstanceOf(IdentityProviderException::class, $received);
+        $this->assertSame(400, $received->getCode(), 'GGG status must survive as the exception code');
+    }
+
+    public function testRefreshFailureCallbackSeesTheProviderStatusNotTheWrapper(): void
+    {
+        // The wrapper is constructed with code 0, so a consumer reading the
+        // AuthenticationException cannot tell a dead token from a GGG outage.
+        $client   = $this->createClientWithFailingRefresh(503);
+        $received = null;
+
+        $client->onTokenRefreshFailure(function (\Exception $e) use (&$received): void {
+            $received = $e;
+        });
+
+        try {
+            $client->refreshToken();
+        } catch (AuthenticationException $wrapper) {
+            $this->assertSame(0, $wrapper->getCode());
+        }
+
+        $this->assertSame(503, $received->getCode());
+    }
+
+    public function testRefreshFailureCallbackIsOptional(): void
+    {
+        $client = $this->createClientWithFailingRefresh(400);
+
+        $this->expectException(AuthenticationException::class);
+
+        $client->refreshToken();
+    }
+
+    public function testFailingRefreshFailureCallbackDoesNotMaskTheRefreshFailure(): void
+    {
+        $client = $this->createClientWithFailingRefresh(400);
+
+        $client->onTokenRefreshFailure(function (): void {
+            throw new \RuntimeException('listener blew up');
+        });
+
+        $this->expectException(AuthenticationException::class);
+        $this->expectExceptionMessage('Token refresh failed');
+
+        $client->refreshToken();
+    }
+
+    public function testRefreshFailureCallbackDoesNotFireOnSuccess(): void
+    {
+        $client = new ApiClient(['client_id' => 'test-client']);
+
+        $client->getAuthProvider()->setHttpClient(new GuzzleClient([
+            'handler' => HandlerStack::create(new MockHandler([
+                new Response(200, ['Content-Type' => 'application/json'], json_encode([
+                    'access_token'  => 'new-access-token',
+                    'refresh_token' => 'new-refresh-token',
+                    'expires_in'    => 3600,
+                    'scope'         => implode(' ', Scope::all()),
+                ])),
+            ])),
+            'http_errors' => false,
+        ]));
+
+        $client->withToken($this->createValidToken());
+
+        $fired = false;
+        $client->onTokenRefreshFailure(function () use (&$fired): void {
+            $fired = true;
+        });
+
+        $client->refreshToken();
+
+        $this->assertFalse($fired);
     }
 
     // ---------------------------------------------------------------
