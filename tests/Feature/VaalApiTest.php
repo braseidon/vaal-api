@@ -10,13 +10,13 @@ use PHPUnit\Framework\TestCase;
 
 class VaalApiTest extends TestCase
 {
-    public function testForReturnsAuthenticatedClient(): void
+    public function test_for_returns_authenticated_client(): void
     {
-        $token  = Token::fromArray([
-            'access_token'  => 'test-token',
+        $token = Token::fromArray([
+            'access_token' => 'test-token',
             'refresh_token' => 'test-refresh',
-            'expires_at'    => time() + 3600,
-            'scope'         => 'account:profile',
+            'expires_at' => time() + 3600,
+            'scope' => 'account:profile',
         ]);
 
         $client = VaalApi::for($token);
@@ -25,23 +25,23 @@ class VaalApiTest extends TestCase
         $this->assertSame($token, $client->getToken());
     }
 
-    public function testForPassesConfig(): void
+    public function test_for_passes_config(): void
     {
-        $token  = Token::fromArray(['access_token' => 'test']);
+        $token = Token::fromArray(['access_token' => 'test']);
         $client = VaalApi::for($token, ['client_id' => 'my-app']);
 
         // Verify config was passed by checking rate limiter exists (created from config)
         $this->assertNotNull($client->getRateLimiter());
     }
 
-    public function testPublicReturnsPublicClient(): void
+    public function test_public_returns_public_client(): void
     {
         $client = VaalApi::public();
 
         $this->assertInstanceOf(PublicApiClient::class, $client);
     }
 
-    public function testPublicPassesConfig(): void
+    public function test_public_passes_config(): void
     {
         $client = VaalApi::public(['timeout' => 60]);
 

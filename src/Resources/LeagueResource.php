@@ -16,7 +16,7 @@ use Braseidon\VaalApi\Enums\Scope;
 class LeagueResource
 {
     /**
-     * @param ApiClient $client Authenticated API client
+     * @param  ApiClient  $client  Authenticated API client
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -25,7 +25,7 @@ class LeagueResource
     /**
      * List all leagues.
      *
-     * @param array{realm?: string, type?: string, season?: string, limit?: int, offset?: int} $params
+     * @param  array{realm?: string, type?: string, season?: string, limit?: int, offset?: int}  $params
      * @return League[]
      */
     public function list(array $params = []): array
@@ -43,14 +43,13 @@ class LeagueResource
     /**
      * Get a specific league by ID.
      *
-     * @param string $leagueId League identifier
-     * @return League
+     * @param  string  $leagueId  League identifier
      */
     public function get(string $leagueId): League
     {
         $this->client->requireScope(Scope::ServiceLeagues, 'LeagueResource');
 
-        $response = $this->client->get('/league/' . rawurlencode($leagueId));
+        $response = $this->client->get('/league/'.rawurlencode($leagueId));
 
         return League::fromArray($response->data());
     }
@@ -60,15 +59,14 @@ class LeagueResource
      *
      * Scope: service:leagues:ladder
      *
-     * @param string $leagueId League identifier
-     * @param array{sort?: string, class?: string, limit?: int, offset?: int} $params
-     * @return array
+     * @param  string  $leagueId  League identifier
+     * @param  array{sort?: string, class?: string, limit?: int, offset?: int}  $params
      */
     public function ladder(string $leagueId, array $params = []): array
     {
         $this->client->requireScope(Scope::ServiceLeaguesLadder, 'LeagueResource::ladder');
 
-        $path     = '/league/' . rawurlencode($leagueId) . '/ladder';
+        $path = '/league/'.rawurlencode($leagueId).'/ladder';
         $response = $this->client->get($path, $params);
 
         return $response->data();
@@ -79,14 +77,13 @@ class LeagueResource
      *
      * Scope: service:leagues:ladder
      *
-     * @param string $leagueId League identifier
-     * @return array
+     * @param  string  $leagueId  League identifier
      */
     public function eventLadder(string $leagueId): array
     {
         $this->client->requireScope(Scope::ServiceLeaguesLadder, 'LeagueResource::eventLadder');
 
-        $path     = '/league/' . rawurlencode($leagueId) . '/event-ladder';
+        $path = '/league/'.rawurlencode($leagueId).'/event-ladder';
         $response = $this->client->get($path);
 
         return $response->data();

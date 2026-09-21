@@ -15,7 +15,7 @@ namespace Braseidon\VaalApi\Dto;
 readonly class Character
 {
     /**
-     * @param array $data Raw character response data
+     * @param  array  $data  Raw character response data
      */
     public function __construct(
         private array $data,
@@ -24,8 +24,7 @@ readonly class Character
     /**
      * Create from a decoded API response array.
      *
-     * @param array $data Decoded JSON from /character/{name}
-     * @return self
+     * @param  array  $data  Decoded JSON from /character/{name}
      */
     public static function fromArray(array $data): self
     {
@@ -34,8 +33,6 @@ readonly class Character
 
     /**
      * The complete raw API response.
-     *
-     * @return array
      */
     public function raw(): array
     {
@@ -44,8 +41,6 @@ readonly class Character
 
     /**
      * Character UUID.
-     *
-     * @return string
      */
     public function id(): string
     {
@@ -54,8 +49,6 @@ readonly class Character
 
     /**
      * Character name.
-     *
-     * @return string
      */
     public function name(): string
     {
@@ -64,8 +57,6 @@ readonly class Character
 
     /**
      * The ascendancy name (GGG quirk: returns ascendancy, not base class).
-     *
-     * @return string
      */
     public function class(): string
     {
@@ -74,8 +65,6 @@ readonly class Character
 
     /**
      * League name, if in a league.
-     *
-     * @return string|null
      */
     public function league(): ?string
     {
@@ -84,8 +73,6 @@ readonly class Character
 
     /**
      * Character level.
-     *
-     * @return int
      */
     public function level(): int
     {
@@ -94,8 +81,6 @@ readonly class Character
 
     /**
      * Total experience.
-     *
-     * @return int
      */
     public function experience(): int
     {
@@ -104,8 +89,6 @@ readonly class Character
 
     /**
      * Equipped items.
-     *
-     * @return array
      */
     public function equipment(): array
     {
@@ -114,8 +97,6 @@ readonly class Character
 
     /**
      * Inventory items.
-     *
-     * @return array
      */
     public function inventory(): array
     {
@@ -124,8 +105,6 @@ readonly class Character
 
     /**
      * Rucksack items.
-     *
-     * @return array
      */
     public function rucksack(): array
     {
@@ -134,8 +113,6 @@ readonly class Character
 
     /**
      * Socketed jewels.
-     *
-     * @return array
      */
     public function jewels(): array
     {
@@ -144,8 +121,6 @@ readonly class Character
 
     /**
      * Passive skill data (hashes, masteries, choices).
-     *
-     * @return array
      */
     public function passives(): array
     {
@@ -184,8 +159,6 @@ readonly class Character
 
     /**
      * Bandit choice (e.g. "kraityn", "alira", "oak", or "eramir").
-     *
-     * @return string|null
      */
     public function banditChoice(): ?string
     {
@@ -194,8 +167,6 @@ readonly class Character
 
     /**
      * Major pantheon god selection.
-     *
-     * @return string|null
      */
     public function pantheonMajor(): ?string
     {
@@ -204,8 +175,6 @@ readonly class Character
 
     /**
      * Minor pantheon god selection.
-     *
-     * @return string|null
      */
     public function pantheonMinor(): ?string
     {
@@ -214,8 +183,6 @@ readonly class Character
 
     /**
      * Bloodline ascendancy name, if using one.
-     *
-     * @return string|null
      */
     public function alternateAscendancy(): ?string
     {

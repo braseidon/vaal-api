@@ -18,14 +18,14 @@ namespace Braseidon\VaalApi\RateLimit;
 class RateLimitPolicy
 {
     /**
-     * @param string                      $name       Policy name from X-Rate-Limit-Policy header
-     * @param array<string, RateLimitWindow[]> $rules Rule name => windows
-     * @param int|null                    $retryAfter Seconds from Retry-After header (429 only)
+     * @param  string  $name  Policy name from X-Rate-Limit-Policy header
+     * @param  array<string, RateLimitWindow[]>  $rules  Rule name => windows
+     * @param  int|null  $retryAfter  Seconds from Retry-After header (429 only)
      */
     public function __construct(
         public readonly string $name,
-        public readonly array  $rules      = [],
-        public readonly ?int   $retryAfter = null,
+        public readonly array $rules = [],
+        public readonly ?int $retryAfter = null,
     ) {}
 
     /**
@@ -35,7 +35,7 @@ class RateLimitPolicy
      * key-value pairs. GGG uses mixed case (X-Rate-Limit-Ip), so everything
      * is normalized to lowercase.
      *
-     * @param array $headers Response headers
+     * @param  array  $headers  Response headers
      * @return self|null Null if no rate limit headers are present
      */
     public static function fromHeaders(array $headers): ?self
@@ -59,7 +59,7 @@ class RateLimitPolicy
         $rules = [];
 
         foreach ($ruleNames as $ruleName) {
-            $key         = strtolower($ruleName);
+            $key = strtolower($ruleName);
             $limitHeader = $headers["x-rate-limit-{$key}"] ?? '';
             $stateHeader = $headers["x-rate-limit-{$key}-state"] ?? '';
 
@@ -79,14 +79,14 @@ class RateLimitPolicy
      * Limit format:  "max_hits:period:penalty[,...]"
      * State format:  "current_hits:period:active_penalty[,...]"
      *
-     * @param string $limitHeader The limit definition header
-     * @param string $stateHeader The current state header
+     * @param  string  $limitHeader  The limit definition header
+     * @param  string  $stateHeader  The current state header
      * @return RateLimitWindow[]
      */
     private static function parseWindows(string $limitHeader, string $stateHeader): array
     {
-        $limits  = explode(',', $limitHeader);
-        $states  = explode(',', $stateHeader);
+        $limits = explode(',', $limitHeader);
+        $states = explode(',', $stateHeader);
         $windows = [];
 
         foreach ($limits as $i => $limitSegment) {
@@ -98,10 +98,10 @@ class RateLimitPolicy
             }
 
             $windows[] = new RateLimitWindow(
-                maxHits:       (int) $limitParts[0],
-                period:        (int) $limitParts[1],
-                penalty:       (int) $limitParts[2],
-                currentHits:   isset($stateParts[0]) ? (int) $stateParts[0] : 0,
+                maxHits: (int) $limitParts[0],
+                period: (int) $limitParts[1],
+                penalty: (int) $limitParts[2],
+                currentHits: isset($stateParts[0]) ? (int) $stateParts[0] : 0,
                 activePenalty: isset($stateParts[2]) ? (int) $stateParts[2] : 0,
             );
         }
@@ -115,7 +115,7 @@ class RateLimitPolicy
      * PSR-7 and Laravel's HTTP client return header values as arrays.
      * GGG's rate limit headers are single-valued, so we flatten safely.
      *
-     * @param array $headers Raw headers
+     * @param  array  $headers  Raw headers
      * @return array<string, string>
      */
     private static function normalizeHeaders(array $headers): array

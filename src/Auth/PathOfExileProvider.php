@@ -8,7 +8,7 @@ use League\OAuth2\Client\Token\AccessToken;
 use Psr\Http\Message\ResponseInterface;
 
 /**
- * Path of Exile OAuth 2.0 provider for league/oauth2-client.
+ * Path of Exile OAuth 2.1 provider for league/oauth2-client.
  *
  * GGG requires PKCE (S256) for all OAuth flows. Authorization codes
  * expire after 30 seconds.
@@ -29,8 +29,6 @@ class PathOfExileProvider extends AbstractProvider
 
     /**
      * Authorization URL for GGG's OAuth flow.
-     *
-     * @return string
      */
     public function getBaseAuthorizationUrl(): string
     {
@@ -40,8 +38,7 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * Token exchange URL.
      *
-     * @param array $params Token request parameters
-     * @return string
+     * @param  array  $params  Token request parameters
      */
     public function getBaseAccessTokenUrl(array $params): string
     {
@@ -51,8 +48,7 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * Resource owner details URL (profile endpoint).
      *
-     * @param AccessToken $token Access token
-     * @return string
+     * @param  AccessToken  $token  Access token
      */
     public function getResourceOwnerDetailsUrl(AccessToken $token): string
     {
@@ -71,8 +67,6 @@ class PathOfExileProvider extends AbstractProvider
 
     /**
      * Scope separator - GGG uses spaces.
-     *
-     * @return string
      */
     protected function getScopeSeparator(): string
     {
@@ -81,8 +75,6 @@ class PathOfExileProvider extends AbstractProvider
 
     /**
      * GGG requires PKCE with SHA-256 for all OAuth flows.
-     *
-     * @return string
      */
     protected function getPkceMethod(): string
     {
@@ -107,7 +99,7 @@ class PathOfExileProvider extends AbstractProvider
      * This ensures our User-Agent overrides Guzzle's default (GuzzleHttp/7),
      * which Cloudflare blocks on GGG's endpoints.
      *
-     * @param array $options Provider constructor options
+     * @param  array  $options  Provider constructor options
      * @return array<string>
      */
     protected function getAllowedClientOptions(array $options): array
@@ -118,15 +110,15 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * {@inheritDoc}
      *
-     * @param array $options Provider options including clientId, userAgentVersion, userAgentContact
-     * @param array $collaborators Collaborator overrides
+     * @param  array  $options  Provider options including clientId, userAgentVersion, userAgentContact
+     * @param  array  $collaborators  Collaborator overrides
      */
     public function __construct(array $options = [], array $collaborators = [])
     {
         // Inject our headers into options so Guzzle picks them up via getAllowedClientOptions
         $options['headers'] = $options['headers'] ?? [];
         $options['headers']['User-Agent'] = $options['headers']['User-Agent']
-            ?? "OAuth " . ($options['clientId'] ?? 'unknown') . "/" . ($options['userAgentVersion'] ?? '1.0.0') . " (contact: " . ($options['userAgentContact'] ?? '') . ")";
+            ?? 'OAuth '.($options['clientId'] ?? 'unknown').'/'.($options['userAgentVersion'] ?? '1.0.0').' (contact: '.($options['userAgentContact'] ?? '').')';
         $options['headers']['Accept'] = $options['headers']['Accept'] ?? 'application/json';
 
         parent::__construct($options, $collaborators);
@@ -148,7 +140,7 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * Authorization headers for API requests.
      *
-     * @param mixed $token Access token string or null
+     * @param  mixed  $token  Access token string or null
      * @return array<string, string>
      */
     protected function getAuthorizationHeaders($token = null): array
@@ -156,7 +148,7 @@ class PathOfExileProvider extends AbstractProvider
         $headers = [];
 
         if ($token !== null) {
-            $headers['Authorization'] = 'Bearer ' . $token;
+            $headers['Authorization'] = 'Bearer '.$token;
         }
 
         return $headers;
@@ -165,9 +157,8 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * Validate the response and throw on errors.
      *
-     * @param ResponseInterface $response The HTTP response
-     * @param mixed             $data     Decoded response body
-     * @return void
+     * @param  ResponseInterface  $response  The HTTP response
+     * @param  mixed  $data  Decoded response body
      *
      * @throws IdentityProviderException
      */
@@ -192,9 +183,8 @@ class PathOfExileProvider extends AbstractProvider
     /**
      * Create a resource owner from the profile response.
      *
-     * @param array       $response Profile response data
-     * @param AccessToken $token    Access token
-     * @return PathOfExileResourceOwner
+     * @param  array  $response  Profile response data
+     * @param  AccessToken  $token  Access token
      */
     protected function createResourceOwner(array $response, AccessToken $token): PathOfExileResourceOwner
     {

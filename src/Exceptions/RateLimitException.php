@@ -12,19 +12,19 @@ use Braseidon\VaalApi\RateLimit\RateLimitResult;
 class RateLimitException extends VaalApiException
 {
     /**
-     * @param RateLimitResult $rateLimitResult Rate limit details
-     * @param string          $message         Error message (auto-generated if empty)
-     * @param int             $code            HTTP status code
-     * @param \Throwable|null $previous        Previous exception
-     * @param array           $responseBody    Decoded API response body, if available
+     * @param  RateLimitResult  $rateLimitResult  Rate limit details
+     * @param  string  $message  Error message (auto-generated if empty)
+     * @param  int  $code  HTTP status code
+     * @param  \Throwable|null  $previous  Previous exception
+     * @param  array  $responseBody  Decoded API response body, if available
      */
     public function __construct(
         protected RateLimitResult $rateLimitResult,
-        string      $message          = '',
-        int         $code             = 429,
-        ?\Throwable $previous         = null,
-        array       $responseBody     = [],
-        ?array      $rateLimitHeaders = null,
+        string $message = '',
+        int $code = 429,
+        ?\Throwable $previous = null,
+        array $responseBody = [],
+        ?array $rateLimitHeaders = null,
     ) {
         if ($message === '') {
             $message = sprintf(
@@ -39,8 +39,6 @@ class RateLimitException extends VaalApiException
 
     /**
      * Get the rate limit details.
-     *
-     * @return RateLimitResult
      */
     public function getRateLimitResult(): RateLimitResult
     {
@@ -49,8 +47,6 @@ class RateLimitException extends VaalApiException
 
     /**
      * Seconds to wait before retrying.
-     *
-     * @return int
      */
     public function getRetryAfter(): int
     {

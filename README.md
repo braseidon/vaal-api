@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![PHP Version](https://img.shields.io/packagist/php-v/braseidon/vaal-api.svg)](https://packagist.org/packages/braseidon/vaal-api)
 
-PHP client for GGG's Path of Exile API. Wraps both the OAuth 2.0 API and the public API with rate limiting, automatic token refresh, and typed DTOs.
+PHP client for GGG's Path of Exile API. Wraps both the OAuth 2.1 API and the public API with rate limiting, automatic token refresh, and typed DTOs.
 
 Built on [league/oauth2-client](https://github.com/thephpleague/oauth2-client) and Guzzle. Used in production for my project [MagicFind.gg](https://magicfind.gg).
 
@@ -93,7 +93,7 @@ The `RateLimitResult` tells you everything you need: whether the request can pro
 
 ### OAuth login flow
 
-GGG uses OAuth 2.0 with PKCE (S256). The provider handles PKCE automatically.
+GGG uses OAuth 2.1 with PKCE (S256). The provider handles PKCE automatically.
 
 ```php
 use Braseidon\VaalApi\Client\ApiClient;

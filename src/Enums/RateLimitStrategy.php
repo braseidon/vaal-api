@@ -11,14 +11,14 @@ namespace Braseidon\VaalApi\Enums;
 enum RateLimitStrategy: string
 {
     /** Wait the required duration and retry automatically. */
-    case Sleep     = 'sleep';
+    case Sleep = 'sleep';
 
     /** Throw a RateLimitException with retry details. */
     case Exception = 'exception';
 
     /** Call a user-provided closure with the RateLimitResult. */
-    case Callback  = 'callback';
+    case Callback = 'callback';
 
     /** Log a PSR-3 warning and continue without waiting. */
-    case Log       = 'log';
+    case Log = 'log';
 }

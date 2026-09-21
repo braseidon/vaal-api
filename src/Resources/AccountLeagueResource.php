@@ -18,8 +18,8 @@ use Braseidon\VaalApi\Enums\Scope;
 class AccountLeagueResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -40,7 +40,7 @@ class AccountLeagueResource
         $path = '/account/leagues';
 
         if ($this->realm !== null) {
-            $path .= '/' . $this->realm->value;
+            $path .= '/'.$this->realm->value;
         }
 
         $response = $this->client->get($path);

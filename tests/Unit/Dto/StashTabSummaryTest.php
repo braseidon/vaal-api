@@ -12,12 +12,12 @@ class StashTabSummaryTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/stash-list.json'),
+            file_get_contents(__DIR__.'/../../fixtures/stash-list.json'),
             true,
         );
     }
 
-    public function testFromArrayBasic(): void
+    public function test_from_array_basic(): void
     {
         $tab = StashTabSummary::fromArray($this->fixture['stashes'][0]);
 
@@ -28,7 +28,7 @@ class StashTabSummaryTest extends TestCase
         $this->assertSame('cc9900', $tab->color);
     }
 
-    public function testAbbreviatedFieldNames(): void
+    public function test_abbreviated_field_names(): void
     {
         // 'n' maps to name, 'i' maps to index, 'colour' maps to color
         $tab = StashTabSummary::fromArray($this->fixture['stashes'][1]);
@@ -38,21 +38,21 @@ class StashTabSummaryTest extends TestCase
         $this->assertSame('336699', $tab->color);
     }
 
-    public function testIsPublicTrue(): void
+    public function test_is_public_true(): void
     {
         $tab = StashTabSummary::fromArray($this->fixture['stashes'][0]);
 
         $this->assertTrue($tab->isPublic());
     }
 
-    public function testIsPublicFalseWhenAbsent(): void
+    public function test_is_public_false_when_absent(): void
     {
         $tab = StashTabSummary::fromArray($this->fixture['stashes'][1]);
 
         $this->assertFalse($tab->isPublic());
     }
 
-    public function testFolderWithChildren(): void
+    public function test_folder_with_children(): void
     {
         $tab = StashTabSummary::fromArray($this->fixture['stashes'][2]);
 
@@ -63,9 +63,9 @@ class StashTabSummaryTest extends TestCase
         $this->assertSame('QuadStash', $tab->children[0]->type);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
-        $tab   = StashTabSummary::fromArray($this->fixture['stashes'][2]);
+        $tab = StashTabSummary::fromArray($this->fixture['stashes'][2]);
         $array = $tab->toArray();
 
         $this->assertSame('Tabs', $array['name']);

@@ -13,7 +13,7 @@ use League\OAuth2\Client\Provider\ResourceOwnerInterface;
 class PathOfExileResourceOwner implements ResourceOwnerInterface
 {
     /**
-     * @param array $data Profile response data from GGG
+     * @param  array  $data  Profile response data from GGG
      */
     public function __construct(
         private readonly array $data,
@@ -21,8 +21,6 @@ class PathOfExileResourceOwner implements ResourceOwnerInterface
 
     /**
      * Account UUID (stable identifier).
-     *
-     * @return string
      */
     public function getId(): string
     {
@@ -31,8 +29,6 @@ class PathOfExileResourceOwner implements ResourceOwnerInterface
 
     /**
      * Display name with discriminator (e.g. "PlayerName#1234").
-     *
-     * @return string
      */
     public function getName(): string
     {
@@ -41,8 +37,6 @@ class PathOfExileResourceOwner implements ResourceOwnerInterface
 
     /**
      * Account realm (pc, xbox, sony).
-     *
-     * @return string|null
      */
     public function getRealm(): ?string
     {
@@ -51,8 +45,6 @@ class PathOfExileResourceOwner implements ResourceOwnerInterface
 
     /**
      * Account locale preference.
-     *
-     * @return string|null
      */
     public function getLocale(): ?string
     {
@@ -61,8 +53,6 @@ class PathOfExileResourceOwner implements ResourceOwnerInterface
 
     /**
      * Raw profile data as an array.
-     *
-     * @return array
      */
     public function toArray(): array
     {

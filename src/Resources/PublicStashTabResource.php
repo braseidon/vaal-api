@@ -19,8 +19,8 @@ use Braseidon\VaalApi\Enums\Scope;
 class PublicStashTabResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -30,7 +30,7 @@ class PublicStashTabResource
     /**
      * Get public stash tabs.
      *
-     * @param string|null $changeId Pagination ID. Omit for the first request.
+     * @param  string|null  $changeId  Pagination ID. Omit for the first request.
      * @return array{stashes: array, next_change_id: string}
      */
     public function get(?string $changeId = null): array
@@ -40,10 +40,10 @@ class PublicStashTabResource
         $path = '/public-stash-tabs';
 
         if ($this->realm !== null) {
-            $path .= '/' . $this->realm->value;
+            $path .= '/'.$this->realm->value;
         }
 
-        $query    = $changeId !== null ? ['id' => $changeId] : [];
+        $query = $changeId !== null ? ['id' => $changeId] : [];
         $response = $this->client->get($path, $query);
 
         return $response->data();

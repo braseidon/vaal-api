@@ -12,7 +12,7 @@ use Braseidon\VaalApi\Dto\League;
 class PublicLeagueResource
 {
     /**
-     * @param PublicApiClient $client Public API client
+     * @param  PublicApiClient  $client  Public API client
      */
     public function __construct(
         private readonly PublicApiClient $client,
@@ -21,7 +21,7 @@ class PublicLeagueResource
     /**
      * List all public leagues.
      *
-     * @param array{type?: string, season?: string, limit?: int, offset?: int} $params
+     * @param  array{type?: string, season?: string, limit?: int, offset?: int}  $params
      * @return League[]
      */
     public function list(array $params = []): array

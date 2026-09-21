@@ -14,8 +14,8 @@ namespace Braseidon\VaalApi\Resources\Public;
 class PublicCharacterResource
 {
     /**
-     * @param PublicApiClient $client      Public API client
-     * @param string          $accountName Account name to query
+     * @param  PublicApiClient  $client  Public API client
+     * @param  string  $accountName  Account name to query
      */
     public function __construct(
         private readonly PublicApiClient $client,
@@ -25,8 +25,7 @@ class PublicCharacterResource
     /**
      * List all characters for the account.
      *
-     * @param string|null $realm Optional realm filter
-     * @return array
+     * @param  string|null  $realm  Optional realm filter
      */
     public function list(?string $realm = null): array
     {
@@ -44,15 +43,14 @@ class PublicCharacterResource
     /**
      * Get passive skill allocations for a character.
      *
-     * @param string      $characterName Character name
-     * @param string|null $realm         Optional realm filter
-     * @return array
+     * @param  string  $characterName  Character name
+     * @param  string|null  $realm  Optional realm filter
      */
     public function passives(string $characterName, ?string $realm = null): array
     {
         $query = [
             'accountName' => $this->accountName,
-            'character'   => $characterName,
+            'character' => $characterName,
         ];
 
         if ($realm !== null) {
@@ -67,15 +65,14 @@ class PublicCharacterResource
     /**
      * Get equipped items for a character.
      *
-     * @param string      $characterName Character name
-     * @param string|null $realm         Optional realm filter
-     * @return array
+     * @param  string  $characterName  Character name
+     * @param  string|null  $realm  Optional realm filter
      */
     public function items(string $characterName, ?string $realm = null): array
     {
         $query = [
             'accountName' => $this->accountName,
-            'character'   => $characterName,
+            'character' => $characterName,
         ];
 
         if ($realm !== null) {

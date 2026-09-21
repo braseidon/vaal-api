@@ -12,9 +12,9 @@ return [
     |
     */
 
-    'client_id'     => env('POE_CLIENT_ID'),
+    'client_id' => env('POE_CLIENT_ID'),
     'client_secret' => env('POE_CLIENT_SECRET'),
-    'redirect_uri'  => env('POE_REDIRECT_URI'),
+    'redirect_uri' => env('POE_REDIRECT_URI'),
 
     /*
     |--------------------------------------------------------------------------
@@ -69,10 +69,10 @@ return [
     */
 
     'rate_limit' => [
-        'strategy'      => env('POE_RATE_LIMIT_STRATEGY', 'sleep'),
+        'strategy' => env('POE_RATE_LIMIT_STRATEGY', 'sleep'),
         'safety_margin' => (float) env('POE_RATE_LIMIT_SAFETY_MARGIN', 0.2),
-        'auto_retry'    => (bool) env('POE_RATE_LIMIT_AUTO_RETRY', true),
-        'max_retries'   => (int) env('POE_RATE_LIMIT_MAX_RETRIES', 3),
+        'auto_retry' => (bool) env('POE_RATE_LIMIT_AUTO_RETRY', true),
+        'max_retries' => (int) env('POE_RATE_LIMIT_MAX_RETRIES', 3),
     ],
 
     /*
@@ -81,9 +81,9 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    'timeout'         => (int) env('POE_API_TIMEOUT', 12),
+    'timeout' => (int) env('POE_API_TIMEOUT', 12),
     'connect_timeout' => (int) env('POE_API_CONNECT_TIMEOUT', 5),
-    'default_realm'   => env('POE_DEFAULT_REALM'),
+    'default_realm' => env('POE_DEFAULT_REALM'),
 
     /*
     |--------------------------------------------------------------------------
@@ -94,7 +94,7 @@ return [
     |
     */
 
-    'base_url'   => env('POE_API_BASE_URL', 'https://api.pathofexile.com'),
+    'base_url' => env('POE_API_BASE_URL', 'https://api.pathofexile.com'),
     'public_url' => env('POE_PUBLIC_URL', 'https://www.pathofexile.com'),
 
 ];

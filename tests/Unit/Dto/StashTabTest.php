@@ -12,12 +12,12 @@ class StashTabTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/stash-detail.json'),
+            file_get_contents(__DIR__.'/../../fixtures/stash-detail.json'),
             true,
         );
     }
 
-    public function testAccessors(): void
+    public function test_accessors(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
@@ -26,7 +26,7 @@ class StashTabTest extends TestCase
         $this->assertSame('CurrencyStash', $tab->type());
     }
 
-    public function testItems(): void
+    public function test_items(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
@@ -35,21 +35,21 @@ class StashTabTest extends TestCase
         $this->assertSame('Exalted Orb', $tab->items()[1]['typeLine']);
     }
 
-    public function testMetadata(): void
+    public function test_metadata(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
         $this->assertTrue($tab->metadata()['public']);
     }
 
-    public function testRaw(): void
+    public function test_raw(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
         $this->assertSame($this->fixture, $tab->raw());
     }
 
-    public function testEmptyDataDefaults(): void
+    public function test_empty_data_defaults(): void
     {
         $tab = StashTab::fromArray([]);
 

@@ -16,8 +16,8 @@ use Braseidon\VaalApi\Enums\Scope;
 class CurrencyExchangeResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -27,8 +27,7 @@ class CurrencyExchangeResource
     /**
      * Get currency exchange rates.
      *
-     * @param string|null $currencyId Specific currency, or null for all
-     * @return array
+     * @param  string|null  $currencyId  Specific currency, or null for all
      */
     public function get(?string $currencyId = null): array
     {
@@ -37,11 +36,11 @@ class CurrencyExchangeResource
         $path = '/currency-exchange';
 
         if ($this->realm !== null) {
-            $path .= '/' . $this->realm->value;
+            $path .= '/'.$this->realm->value;
         }
 
         if ($currencyId !== null) {
-            $path .= '/' . rawurlencode($currencyId);
+            $path .= '/'.rawurlencode($currencyId);
         }
 
         $response = $this->client->get($path);

@@ -15,8 +15,8 @@ use Braseidon\VaalApi\Enums\Realm;
 class GuildResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -26,8 +26,7 @@ class GuildResource
     /**
      * Get a stash resource for guild stash tabs.
      *
-     * @param string $league League name
-     * @return GuildStashResource
+     * @param  string  $league  League name
      */
     public function stashes(string $league): GuildStashResource
     {

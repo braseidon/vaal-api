@@ -12,12 +12,12 @@ class TradeSearchResultTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/trade-search.json'),
+            file_get_contents(__DIR__.'/../../fixtures/trade-search.json'),
             true,
         );
     }
 
-    public function testFromArray(): void
+    public function test_from_array(): void
     {
         $result = TradeSearchResult::fromArray($this->fixture);
 
@@ -27,7 +27,7 @@ class TradeSearchResultTest extends TestCase
         $this->assertSame(35, $result->complexity);
     }
 
-    public function testResultHashesAreStrings(): void
+    public function test_result_hashes_are_strings(): void
     {
         $result = TradeSearchResult::fromArray($this->fixture);
 
@@ -37,7 +37,7 @@ class TradeSearchResultTest extends TestCase
         }
     }
 
-    public function testDefaultsForMissingFields(): void
+    public function test_defaults_for_missing_fields(): void
     {
         $result = TradeSearchResult::fromArray(['id' => 'abc']);
 

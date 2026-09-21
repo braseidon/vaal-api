@@ -12,12 +12,12 @@ class CharacterSummaryTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/character-list.json'),
+            file_get_contents(__DIR__.'/../../fixtures/character-list.json'),
             true,
         );
     }
 
-    public function testFromArray(): void
+    public function test_from_array(): void
     {
         $char = CharacterSummary::fromArray($this->fixture['characters'][0]);
 
@@ -29,7 +29,7 @@ class CharacterSummaryTest extends TestCase
         $this->assertFalse($char->current);
     }
 
-    public function testCurrentCharacter(): void
+    public function test_current_character(): void
     {
         $char = CharacterSummary::fromArray($this->fixture['characters'][1]);
 
@@ -37,9 +37,9 @@ class CharacterSummaryTest extends TestCase
         $this->assertTrue($char->current);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
-        $char  = CharacterSummary::fromArray($this->fixture['characters'][0]);
+        $char = CharacterSummary::fromArray($this->fixture['characters'][0]);
         $array = $char->toArray();
 
         $this->assertSame('VaalSlamDancer', $array['name']);

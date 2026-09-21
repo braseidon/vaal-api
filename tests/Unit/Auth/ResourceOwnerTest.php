@@ -7,7 +7,7 @@ use PHPUnit\Framework\TestCase;
 
 class ResourceOwnerTest extends TestCase
 {
-    public function testGetId(): void
+    public function test_get_id(): void
     {
         $owner = new PathOfExileResourceOwner([
             'uuid' => 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
@@ -17,28 +17,28 @@ class ResourceOwnerTest extends TestCase
         $this->assertSame('a1b2c3d4-e5f6-7890-abcd-ef1234567890', $owner->getId());
     }
 
-    public function testGetName(): void
+    public function test_get_name(): void
     {
         $owner = new PathOfExileResourceOwner(['name' => 'ExileRunner#4821']);
 
         $this->assertSame('ExileRunner#4821', $owner->getName());
     }
 
-    public function testGetRealm(): void
+    public function test_get_realm(): void
     {
         $owner = new PathOfExileResourceOwner(['realm' => 'pc']);
 
         $this->assertSame('pc', $owner->getRealm());
     }
 
-    public function testGetLocale(): void
+    public function test_get_locale(): void
     {
         $owner = new PathOfExileResourceOwner(['locale' => 'en_US']);
 
         $this->assertSame('en_US', $owner->getLocale());
     }
 
-    public function testNullDefaults(): void
+    public function test_null_defaults(): void
     {
         $owner = new PathOfExileResourceOwner([]);
 
@@ -48,9 +48,9 @@ class ResourceOwnerTest extends TestCase
         $this->assertNull($owner->getLocale());
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
-        $data  = ['uuid' => 'abc', 'name' => 'Test#1', 'realm' => 'pc'];
+        $data = ['uuid' => 'abc', 'name' => 'Test#1', 'realm' => 'pc'];
         $owner = new PathOfExileResourceOwner($data);
 
         $this->assertSame($data, $owner->toArray());

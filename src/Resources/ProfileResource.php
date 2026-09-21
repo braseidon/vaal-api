@@ -14,7 +14,7 @@ use Braseidon\VaalApi\Enums\Scope;
 class ProfileResource
 {
     /**
-     * @param ApiClient $client Authenticated API client
+     * @param  ApiClient  $client  Authenticated API client
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -25,8 +25,6 @@ class ProfileResource
      *
      * Returns the account UUID, display name, locale, and optional
      * Twitch/guild connections.
-     *
-     * @return Profile
      */
     public function get(): Profile
     {

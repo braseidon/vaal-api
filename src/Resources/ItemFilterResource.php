@@ -16,7 +16,7 @@ use Braseidon\VaalApi\Enums\Scope;
 class ItemFilterResource
 {
     /**
-     * @param ApiClient $client Authenticated API client
+     * @param  ApiClient  $client  Authenticated API client
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -42,14 +42,13 @@ class ItemFilterResource
     /**
      * Get a specific item filter.
      *
-     * @param string $id Filter identifier
-     * @return ItemFilter
+     * @param  string  $id  Filter identifier
      */
     public function get(string $id): ItemFilter
     {
         $this->client->requireScope(Scope::ItemFilter, 'ItemFilterResource');
 
-        $response = $this->client->get('/item-filter/' . rawurlencode($id));
+        $response = $this->client->get('/item-filter/'.rawurlencode($id));
 
         return ItemFilter::fromArray($response->data());
     }
@@ -57,15 +56,14 @@ class ItemFilterResource
     /**
      * Create a new item filter.
      *
-     * @param array{filter_name: string, realm: string, description?: string, version?: string, type?: string, public?: bool, filter: string} $data
-     * @param bool $validate Whether to validate against the current game version
-     * @return ItemFilter
+     * @param  array{filter_name: string, realm: string, description?: string, version?: string, type?: string, public?: bool, filter: string}  $data
+     * @param  bool  $validate  Whether to validate against the current game version
      */
     public function create(array $data, bool $validate = false): ItemFilter
     {
         $this->client->requireScope(Scope::ItemFilter, 'ItemFilterResource');
 
-        $query    = $validate ? ['validate' => 'true'] : [];
+        $query = $validate ? ['validate' => 'true'] : [];
         $response = $this->client->post('/item-filter', $data, $query);
 
         return ItemFilter::fromArray($response->data());
@@ -77,17 +75,16 @@ class ItemFilterResource
      * All fields are optional for partial updates.
      * Note: Public filters cannot be made private again.
      *
-     * @param string $id       Filter identifier
-     * @param array  $data     Fields to update
-     * @param bool   $validate Whether to validate against the current game version
-     * @return ItemFilter
+     * @param  string  $id  Filter identifier
+     * @param  array  $data  Fields to update
+     * @param  bool  $validate  Whether to validate against the current game version
      */
     public function update(string $id, array $data, bool $validate = false): ItemFilter
     {
         $this->client->requireScope(Scope::ItemFilter, 'ItemFilterResource');
 
-        $query    = $validate ? ['validate' => 'true'] : [];
-        $response = $this->client->post('/item-filter/' . rawurlencode($id), $data, $query);
+        $query = $validate ? ['validate' => 'true'] : [];
+        $response = $this->client->post('/item-filter/'.rawurlencode($id), $data, $query);
 
         return ItemFilter::fromArray($response->data());
     }

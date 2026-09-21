@@ -15,7 +15,7 @@ use Braseidon\VaalApi\Enums\Realm;
 class PublicStashTabResource
 {
     /**
-     * @param PublicApiClient $client Public API client
+     * @param  PublicApiClient  $client  Public API client
      */
     public function __construct(
         private readonly PublicApiClient $client,
@@ -24,8 +24,8 @@ class PublicStashTabResource
     /**
      * Get public stash tabs.
      *
-     * @param string|null $changeId Pagination ID from previous response
-     * @param Realm|null  $realm    Optional realm filter
+     * @param  string|null  $changeId  Pagination ID from previous response
+     * @param  Realm|null  $realm  Optional realm filter
      * @return array{stashes: array, next_change_id: string}
      */
     public function get(?string $changeId = null, ?Realm $realm = null): array
@@ -33,10 +33,10 @@ class PublicStashTabResource
         $path = '/api/public-stash-tabs';
 
         if ($realm !== null) {
-            $path .= '/' . $realm->value;
+            $path .= '/'.$realm->value;
         }
 
-        $query    = $changeId !== null ? ['id' => $changeId] : [];
+        $query = $changeId !== null ? ['id' => $changeId] : [];
         $response = $this->client->get($path, $query);
 
         return $response->data();

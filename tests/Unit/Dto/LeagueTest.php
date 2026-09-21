@@ -12,12 +12,12 @@ class LeagueTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/leagues.json'),
+            file_get_contents(__DIR__.'/../../fixtures/leagues.json'),
             true,
         );
     }
 
-    public function testFromArrayStandardLeague(): void
+    public function test_from_array_standard_league(): void
     {
         $league = League::fromArray($this->fixture[0]);
 
@@ -29,7 +29,7 @@ class LeagueTest extends TestCase
         $this->assertSame([], $league->rules);
     }
 
-    public function testFromArrayCurrentLeague(): void
+    public function test_from_array_current_league(): void
     {
         $league = League::fromArray($this->fixture[1]);
 
@@ -39,21 +39,21 @@ class LeagueTest extends TestCase
         $this->assertStringContainsString('pathofexile.com/league/Mirage', $league->url);
     }
 
-    public function testIsCurrentTrue(): void
+    public function test_is_current_true(): void
     {
         $league = League::fromArray($this->fixture[1]);
 
         $this->assertTrue($league->isCurrent());
     }
 
-    public function testIsCurrentFalseForStandard(): void
+    public function test_is_current_false_for_standard(): void
     {
         $league = League::fromArray($this->fixture[0]);
 
         $this->assertFalse($league->isCurrent());
     }
 
-    public function testHardcoreRules(): void
+    public function test_hardcore_rules(): void
     {
         $league = League::fromArray($this->fixture[2]);
 
@@ -62,10 +62,10 @@ class LeagueTest extends TestCase
         $this->assertSame('Hardcore', $league->rules[0]['id']);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
         $league = League::fromArray($this->fixture[1]);
-        $array  = $league->toArray();
+        $array = $league->toArray();
 
         $this->assertSame('Mirage', $array['id']);
         $this->assertSame('pc', $array['realm']);

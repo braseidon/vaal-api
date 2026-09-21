@@ -24,14 +24,12 @@ use Illuminate\Support\Facades\Facade;
  * @method static \Braseidon\VaalApi\Resources\CurrencyExchangeResource currencyExchange(?\Braseidon\VaalApi\Enums\Realm $realm = null)
  * @method static \Braseidon\VaalApi\Resources\Public\PublicApiClient public()
  *
- * @see \Braseidon\VaalApi\Client\ApiClient
+ * @see ApiClient
  */
 class VaalApi extends Facade
 {
     /**
      * Get the registered name of the component.
-     *
-     * @return string
      */
     protected static function getFacadeAccessor(): string
     {

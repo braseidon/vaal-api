@@ -20,7 +20,7 @@ class RateLimiter
     private array $policies = [];
 
     /**
-     * @param float $safetyMargin Fraction to reduce limits by (0.0-1.0, default 0.2 = 20%)
+     * @param  float  $safetyMargin  Fraction to reduce limits by (0.0-1.0, default 0.2 = 20%)
      */
     public function __construct(
         private readonly float $safetyMargin = 0.2,
@@ -31,7 +31,7 @@ class RateLimiter
      *
      * Call this after every API response to keep the tracker current.
      *
-     * @param array $headers Response headers
+     * @param  array  $headers  Response headers
      * @return RateLimitPolicy|null Parsed policy, or null if no rate limit headers
      */
     public function recordResponse(array $headers): ?RateLimitPolicy
@@ -52,12 +52,11 @@ class RateLimiter
      * exists for this policy (first request), returns "proceed" since we
      * can't know the limits yet.
      *
-     * @param string $policy Policy name
-     * @return RateLimitResult
+     * @param  string  $policy  Policy name
      */
     public function check(string $policy): RateLimitResult
     {
-        if (!isset($this->policies[$policy])) {
+        if (! isset($this->policies[$policy])) {
             return RateLimitResult::unknown();
         }
 
@@ -69,7 +68,7 @@ class RateLimiter
         }
 
         $maxWait = 0;
-        $reason  = '';
+        $reason = '';
 
         foreach ($state->rules as $ruleName => $windows) {
             foreach ($windows as $window) {
@@ -77,7 +76,7 @@ class RateLimiter
 
                 if ($wait > $maxWait) {
                     $maxWait = $wait;
-                    $reason  = $window->isPenalized()
+                    $reason = $window->isPenalized()
                         ? "Rule '{$ruleName}' is penalized for {$wait}s"
                         : "Rule '{$ruleName}' at limit ({$window->currentHits}/{$window->maxHits})";
                 }
@@ -96,8 +95,7 @@ class RateLimiter
      *
      * Convenience method combining recordResponse() and a limit check.
      *
-     * @param array $headers Response headers
-     * @return bool
+     * @param  array  $headers  Response headers
      */
     public function isLimited(array $headers): bool
     {
@@ -107,7 +105,7 @@ class RateLimiter
             return false;
         }
 
-        return !$this->check($policy->name)->canProceed;
+        return ! $this->check($policy->name)->canProceed;
     }
 
     /**
@@ -115,8 +113,7 @@ class RateLimiter
      *
      * Convenience method for simple "how long do I wait?" queries.
      *
-     * @param array $headers Response headers
-     * @return int
+     * @param  array  $headers  Response headers
      */
     public function getWaitSeconds(array $headers): int
     {
@@ -132,8 +129,7 @@ class RateLimiter
     /**
      * Get the last-known state for a policy.
      *
-     * @param string $policy Policy name
-     * @return RateLimitPolicy|null
+     * @param  string  $policy  Policy name
      */
     public function getPolicy(string $policy): ?RateLimitPolicy
     {
@@ -142,8 +138,6 @@ class RateLimiter
 
     /**
      * Clear all tracked state.
-     *
-     * @return void
      */
     public function reset(): void
     {

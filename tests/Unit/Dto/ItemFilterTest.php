@@ -12,12 +12,12 @@ class ItemFilterTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/item-filter.json'),
+            file_get_contents(__DIR__.'/../../fixtures/item-filter.json'),
             true,
         );
     }
 
-    public function testFromArray(): void
+    public function test_from_array(): void
     {
         $filter = ItemFilter::fromArray($this->fixture);
 
@@ -31,7 +31,7 @@ class ItemFilterTest extends TestCase
         $this->assertStringContainsString('Rarity Unique', $filter->filter);
     }
 
-    public function testFilterNameFieldMapping(): void
+    public function test_filter_name_field_mapping(): void
     {
         // GGG uses 'filter_name' in responses
         $data = ['id' => 'x', 'filter_name' => 'My Filter'];
@@ -41,10 +41,10 @@ class ItemFilterTest extends TestCase
         $this->assertSame('My Filter', $filter->name);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
         $filter = ItemFilter::fromArray($this->fixture);
-        $array  = $filter->toArray();
+        $array = $filter->toArray();
 
         $this->assertSame('abc123def456', $array['id']);
         $this->assertSame('MF Strictness Filter', $array['filter_name']);
@@ -52,7 +52,7 @@ class ItemFilterTest extends TestCase
         $this->assertTrue($array['public']);
     }
 
-    public function testDefaultValues(): void
+    public function test_default_values(): void
     {
         $filter = ItemFilter::fromArray(['id' => 'test']);
 

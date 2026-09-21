@@ -13,13 +13,13 @@ class PathOfExileProviderTest extends TestCase
     protected function setUp(): void
     {
         $this->provider = new PathOfExileProvider([
-            'clientId'     => 'test-client-id',
+            'clientId' => 'test-client-id',
             'clientSecret' => 'test-client-secret',
-            'redirectUri'  => 'https://example.com/callback',
+            'redirectUri' => 'https://example.com/callback',
         ]);
     }
 
-    public function testAuthorizationUrl(): void
+    public function test_authorization_url(): void
     {
         $url = $this->provider->getAuthorizationUrl(['scope' => 'account:profile']);
 
@@ -29,7 +29,7 @@ class PathOfExileProviderTest extends TestCase
         $this->assertStringContainsString('response_type=code', $url);
     }
 
-    public function testAuthorizationUrlIncludesState(): void
+    public function test_authorization_url_includes_state(): void
     {
         $this->provider->getAuthorizationUrl();
         $state = $this->provider->getState();
@@ -37,22 +37,22 @@ class PathOfExileProviderTest extends TestCase
         $this->assertNotEmpty($state);
     }
 
-    public function testBaseAccessTokenUrl(): void
+    public function test_base_access_token_url(): void
     {
         $url = $this->provider->getBaseAccessTokenUrl([]);
 
         $this->assertSame('https://www.pathofexile.com/oauth/token', $url);
     }
 
-    public function testResourceOwnerDetailsUrl(): void
+    public function test_resource_owner_details_url(): void
     {
         $token = new AccessToken(['access_token' => 'test-token']);
-        $url   = $this->provider->getResourceOwnerDetailsUrl($token);
+        $url = $this->provider->getResourceOwnerDetailsUrl($token);
 
         $this->assertSame('https://api.pathofexile.com/profile', $url);
     }
 
-    public function testPkceMethodIsS256(): void
+    public function test_pkce_method_is_s256(): void
     {
         // PKCE method is used internally during authorization URL generation
         $url = $this->provider->getAuthorizationUrl();
@@ -62,16 +62,16 @@ class PathOfExileProviderTest extends TestCase
         $this->assertStringContainsString('code_challenge_method=S256', $url);
     }
 
-    public function testResourceOwnerCreation(): void
+    public function test_resource_owner_creation(): void
     {
         $profileData = [
-            'uuid'   => 'abc-123',
-            'name'   => 'TestPlayer#1234',
-            'realm'  => 'pc',
+            'uuid' => 'abc-123',
+            'name' => 'TestPlayer#1234',
+            'realm' => 'pc',
             'locale' => 'en_US',
         ];
 
-        $token         = new AccessToken(['access_token' => 'test-token']);
+        $token = new AccessToken(['access_token' => 'test-token']);
         $resourceOwner = $this->callProtectedMethod('createResourceOwner', [$profileData, $token]);
 
         $this->assertSame('abc-123', $resourceOwner->getId());
@@ -80,7 +80,7 @@ class PathOfExileProviderTest extends TestCase
         $this->assertSame('en_US', $resourceOwner->getLocale());
     }
 
-    public function testScopeSeparatorIsSpace(): void
+    public function test_scope_separator_is_space(): void
     {
         $url = $this->provider->getAuthorizationUrl([
             'scope' => 'account:profile account:characters',
@@ -93,9 +93,8 @@ class PathOfExileProviderTest extends TestCase
     /**
      * Call a protected/private method for testing.
      *
-     * @param string $method Method name
-     * @param array  $args   Method arguments
-     * @return mixed
+     * @param  string  $method  Method name
+     * @param  array  $args  Method arguments
      */
     private function callProtectedMethod(string $method, array $args): mixed
     {

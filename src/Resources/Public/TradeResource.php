@@ -18,7 +18,7 @@ use Braseidon\VaalApi\Dto\TradeSearchResult;
 class TradeResource
 {
     /**
-     * @param PublicApiClient $client Public API client
+     * @param  PublicApiClient  $client  Public API client
      */
     public function __construct(
         private readonly PublicApiClient $client,
@@ -27,13 +27,12 @@ class TradeResource
     /**
      * Search for items on the trade site.
      *
-     * @param string $league League name (e.g. "Standard", "Mirage")
-     * @param array  $query  Trade search query
-     * @return TradeSearchResult
+     * @param  string  $league  League name (e.g. "Standard", "Mirage")
+     * @param  array  $query  Trade search query
      */
     public function search(string $league, array $query): TradeSearchResult
     {
-        $path     = '/api/trade/search/' . rawurlencode($league);
+        $path = '/api/trade/search/'.rawurlencode($league);
         $response = $this->client->post($path, $query);
 
         return TradeSearchResult::fromArray($response->data());
@@ -42,13 +41,12 @@ class TradeResource
     /**
      * Fetch item details by result hashes from a search.
      *
-     * @param string   $searchId The search ID from a previous search
-     * @param string[] $itemIds  Result hashes to fetch (max 10 per request)
-     * @return array
+     * @param  string  $searchId  The search ID from a previous search
+     * @param  string[]  $itemIds  Result hashes to fetch (max 10 per request)
      */
     public function fetch(string $searchId, array $itemIds): array
     {
-        $path     = '/api/trade/fetch/' . implode(',', array_map('rawurlencode', $itemIds));
+        $path = '/api/trade/fetch/'.implode(',', array_map('rawurlencode', $itemIds));
         $response = $this->client->get($path, ['query' => $searchId]);
 
         return $response->data();
@@ -58,8 +56,6 @@ class TradeResource
      * Get all tradeable item types and uniques.
      *
      * CDN-cached, no rate limit.
-     *
-     * @return array
      */
     public function items(): array
     {
@@ -72,8 +68,6 @@ class TradeResource
      * Get all filterable stats for trade searches.
      *
      * CDN-cached, no rate limit.
-     *
-     * @return array
      */
     public function stats(): array
     {
@@ -86,8 +80,6 @@ class TradeResource
      * Get static reference data (currencies, fragments, etc).
      *
      * CDN-cached, no rate limit.
-     *
-     * @return array
      */
     public function static(): array
     {

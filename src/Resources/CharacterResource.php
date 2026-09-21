@@ -19,8 +19,8 @@ use Braseidon\VaalApi\Enums\Scope;
 class CharacterResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -38,7 +38,7 @@ class CharacterResource
     {
         $this->client->requireScope(Scope::Characters, 'CharacterResource');
 
-        $path     = $this->buildPath('/character');
+        $path = $this->buildPath('/character');
         $response = $this->client->get($path);
 
         $characters = $response->data()['characters'] ?? $response->data();
@@ -55,14 +55,13 @@ class CharacterResource
      * Rate limit: character-request-limit (5 req/10s, 30 req/5min)
      * Response size: 200-320KB per character.
      *
-     * @param string $name Character name
-     * @return Character
+     * @param  string  $name  Character name
      */
     public function get(string $name): Character
     {
         $this->client->requireScope(Scope::Characters, 'CharacterResource');
 
-        $path     = $this->buildPath('/character') . '/' . rawurlencode($name);
+        $path = $this->buildPath('/character').'/'.rawurlencode($name);
         $response = $this->client->get($path);
 
         return Character::fromArray($response->data());
@@ -71,13 +70,12 @@ class CharacterResource
     /**
      * Build a path with optional realm segment.
      *
-     * @param string $base Base path
-     * @return string
+     * @param  string  $base  Base path
      */
     private function buildPath(string $base): string
     {
         if ($this->realm !== null) {
-            return $base . '/' . $this->realm->value;
+            return $base.'/'.$this->realm->value;
         }
 
         return $base;

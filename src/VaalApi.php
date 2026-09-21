@@ -21,9 +21,8 @@ class VaalApi
     /**
      * Create an authenticated API client.
      *
-     * @param Token $token  OAuth token for authenticated requests
-     * @param array $config Client configuration (see ApiClient for options)
-     * @return ApiClient
+     * @param  Token  $token  OAuth token for authenticated requests
+     * @param  array  $config  Client configuration (see ApiClient for options)
      */
     public static function for(Token $token, array $config = []): ApiClient
     {
@@ -36,8 +35,7 @@ class VaalApi
     /**
      * Create a public API client (no authentication required).
      *
-     * @param array $config Client configuration
-     * @return PublicApiClient
+     * @param  array  $config  Client configuration
      */
     public static function public(array $config = []): PublicApiClient
     {

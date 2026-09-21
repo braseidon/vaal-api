@@ -12,12 +12,12 @@ class CharacterTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/character-detail.json'),
+            file_get_contents(__DIR__.'/../../fixtures/character-detail.json'),
             true,
         );
     }
 
-    public function testBasicAccessors(): void
+    public function test_basic_accessors(): void
     {
         $char = Character::fromArray($this->fixture);
 
@@ -27,7 +27,7 @@ class CharacterTest extends TestCase
         $this->assertSame(100, $char->level());
     }
 
-    public function testEquipment(): void
+    public function test_equipment(): void
     {
         $char = Character::fromArray($this->fixture);
 
@@ -35,7 +35,7 @@ class CharacterTest extends TestCase
         $this->assertSame('Test Helm', $char->equipment()[0]['name']);
     }
 
-    public function testPassives(): void
+    public function test_passives(): void
     {
         $char = Character::fromArray($this->fixture);
 
@@ -47,7 +47,7 @@ class CharacterTest extends TestCase
         $this->assertSame('Abberath', $char->pantheonMinor());
     }
 
-    public function testRaw(): void
+    public function test_raw(): void
     {
         $char = Character::fromArray($this->fixture);
 

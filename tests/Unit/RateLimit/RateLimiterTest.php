@@ -12,14 +12,14 @@ class RateLimiterTest extends TestCase
     protected function setUp(): void
     {
         $this->fixtures = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/rate-limit-headers.json'),
+            file_get_contents(__DIR__.'/../../fixtures/rate-limit-headers.json'),
             true,
         );
     }
 
-    public function testRecordResponseParsesPolicy(): void
+    public function test_record_response_parses_policy(): void
     {
-        $limiter = new RateLimiter();
+        $limiter = new RateLimiter;
         $policy = $limiter->recordResponse($this->fixtures['character-list']);
 
         $this->assertNotNull($policy);
@@ -28,7 +28,7 @@ class RateLimiterTest extends TestCase
         $this->assertCount(2, $policy->rules['account']);
     }
 
-    public function testCheckAllowsWhenUnderLimit(): void
+    public function test_check_allows_when_under_limit(): void
     {
         $limiter = new RateLimiter(0.0); // No safety margin
         $limiter->recordResponse($this->fixtures['character-list']);
@@ -39,7 +39,7 @@ class RateLimiterTest extends TestCase
         $this->assertSame(0, $result->waitSeconds);
     }
 
-    public function testCheckBlocksWhenAtLimit(): void
+    public function test_check_blocks_when_at_limit(): void
     {
         $limiter = new RateLimiter(0.0); // No safety margin
         $limiter->recordResponse($this->fixtures['at-limit-window1']);
@@ -50,7 +50,7 @@ class RateLimiterTest extends TestCase
         $this->assertSame(10, $result->waitSeconds); // Window 1 period
     }
 
-    public function testCheckReturnsMaxWaitAcrossWindows(): void
+    public function test_check_returns_max_wait_across_windows(): void
     {
         $limiter = new RateLimiter(0.0);
         $limiter->recordResponse($this->fixtures['at-limit-both']);
@@ -61,7 +61,7 @@ class RateLimiterTest extends TestCase
         $this->assertSame(300, $result->waitSeconds); // Max of both windows
     }
 
-    public function testCheckBlocksWhenPenalized(): void
+    public function test_check_blocks_when_penalized(): void
     {
         $limiter = new RateLimiter(0.0);
         $limiter->recordResponse($this->fixtures['penalized']);
@@ -72,7 +72,7 @@ class RateLimiterTest extends TestCase
         $this->assertSame(45, $result->waitSeconds); // Retry-After value
     }
 
-    public function testSafetyMarginReducesEffectiveLimit(): void
+    public function test_safety_margin_reduces_effective_limit(): void
     {
         // At 1 of 2 hits, but with 50% safety margin, effective limit is 1
         $limiter = new RateLimiter(0.5);
@@ -83,7 +83,7 @@ class RateLimiterTest extends TestCase
         $this->assertFalse($result->canProceed);
     }
 
-    public function testSafetyMarginAllowsWhenUnderEffective(): void
+    public function test_safety_margin_allows_when_under_effective(): void
     {
         // At 2 of 5 hits on window 2, with 20% safety margin effective is 4
         // At 1 of 2 hits on window 1, with 20% safety margin effective is 1
@@ -98,34 +98,34 @@ class RateLimiterTest extends TestCase
         $this->assertFalse($result->canProceed);
     }
 
-    public function testCheckUnknownPolicyReturnsProceeed(): void
+    public function test_check_unknown_policy_returns_proceeed(): void
     {
-        $limiter = new RateLimiter();
+        $limiter = new RateLimiter;
 
         $result = $limiter->check('nonexistent-policy');
 
         $this->assertTrue($result->canProceed);
     }
 
-    public function testIsLimitedReturnsFalseWhenUnderLimit(): void
+    public function test_is_limited_returns_false_when_under_limit(): void
     {
         $limiter = new RateLimiter(0.0);
         $this->assertFalse($limiter->isLimited($this->fixtures['character-list']));
     }
 
-    public function testIsLimitedReturnsTrueWhenAtLimit(): void
+    public function test_is_limited_returns_true_when_at_limit(): void
     {
         $limiter = new RateLimiter(0.0);
         $this->assertTrue($limiter->isLimited($this->fixtures['at-limit-window1']));
     }
 
-    public function testIsLimitedReturnsTrueWhenPenalized(): void
+    public function test_is_limited_returns_true_when_penalized(): void
     {
         $limiter = new RateLimiter(0.0);
         $this->assertTrue($limiter->isLimited($this->fixtures['penalized']));
     }
 
-    public function testGetWaitSeconds(): void
+    public function test_get_wait_seconds(): void
     {
         $limiter = new RateLimiter(0.0);
 
@@ -134,7 +134,7 @@ class RateLimiterTest extends TestCase
         $this->assertSame(45, $limiter->getWaitSeconds($this->fixtures['penalized']));
     }
 
-    public function testReset(): void
+    public function test_reset(): void
     {
         $limiter = new RateLimiter(0.0);
         $limiter->recordResponse($this->fixtures['at-limit-window1']);
@@ -146,15 +146,15 @@ class RateLimiterTest extends TestCase
         $this->assertNull($limiter->getPolicy('character-list-request-limit'));
     }
 
-    public function testNoRateLimitHeaders(): void
+    public function test_no_rate_limit_headers(): void
     {
-        $limiter = new RateLimiter();
+        $limiter = new RateLimiter;
         $policy = $limiter->recordResponse([]);
 
         $this->assertNull($policy);
     }
 
-    public function testMultipleRules(): void
+    public function test_multiple_rules(): void
     {
         $headers = [
             'X-Rate-Limit-Policy' => 'test-policy',
@@ -173,9 +173,9 @@ class RateLimiterTest extends TestCase
         $this->assertArrayHasKey('ip', $policy->rules);
     }
 
-    public function testWindowParsesCorrectly(): void
+    public function test_window_parses_correctly(): void
     {
-        $limiter = new RateLimiter();
+        $limiter = new RateLimiter;
         $limiter->recordResponse($this->fixtures['character-detail']);
 
         $policy = $limiter->getPolicy('character-request-limit');

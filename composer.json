@@ -1,6 +1,6 @@
 {
     "name": "braseidon/vaal-api",
-    "description": "PHP client for the Path of Exile API with OAuth 2.0, rate limiting, and full endpoint coverage",
+    "description": "PHP client for the Path of Exile API with OAuth 2.1, rate limiting, and full endpoint coverage",
     "type": "library",
     "keywords": ["path-of-exile", "poe", "ggg", "api", "oauth", "rate-limiting"],
     "license": "MIT",

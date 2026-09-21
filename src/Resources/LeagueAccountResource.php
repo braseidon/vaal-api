@@ -18,9 +18,9 @@ use Braseidon\VaalApi\Enums\Scope;
 class LeagueAccountResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param string     $league League name
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  string  $league  League name
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -30,8 +30,6 @@ class LeagueAccountResource
 
     /**
      * Get the account's league data (atlas passives).
-     *
-     * @return array
      */
     public function get(): array
     {
@@ -40,10 +38,10 @@ class LeagueAccountResource
         $path = '/league-account';
 
         if ($this->realm !== null) {
-            $path .= '/' . $this->realm->value;
+            $path .= '/'.$this->realm->value;
         }
 
-        $path .= '/' . rawurlencode($this->league);
+        $path .= '/'.rawurlencode($this->league);
 
         $response = $this->client->get($path);
 

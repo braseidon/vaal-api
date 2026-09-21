@@ -4,8 +4,8 @@ namespace Braseidon\VaalApi\Client;
 
 use Braseidon\VaalApi\Auth\PathOfExileProvider;
 use Braseidon\VaalApi\Auth\Token;
-use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\RateLimitStrategy;
+use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
 use Braseidon\VaalApi\Exceptions\AuthenticationException;
 use Braseidon\VaalApi\Exceptions\ConnectionException;
@@ -45,12 +45,17 @@ use Psr\Log\LoggerInterface;
  */
 class ApiClient
 {
-    private GuzzleClient        $httpClient;
-    private RateLimiter         $rateLimiter;
-    private ?Token              $token          = null;
-    private ?Closure            $onTokenRefresh = null;
-    private ?Closure            $onTokenRefreshFailure = null;
-    private ?PathOfExileProvider $authProvider   = null;
+    private GuzzleClient $httpClient;
+
+    private RateLimiter $rateLimiter;
+
+    private ?Token $token = null;
+
+    private ?Closure $onTokenRefresh = null;
+
+    private ?Closure $onTokenRefreshFailure = null;
+
+    private ?PathOfExileProvider $authProvider = null;
 
     /** @var array<string, string> Maps URL patterns to known policy names */
     private array $policyMap = [];
@@ -79,7 +84,7 @@ class ApiClient
     public function __construct(
         private readonly array $config = [],
     ) {
-        $safetyMargin    = $this->config['rate_limit']['safety_margin'] ?? 0.2;
+        $safetyMargin = $this->config['rate_limit']['safety_margin'] ?? 0.2;
         $this->rateLimiter = new RateLimiter($safetyMargin);
 
         $stack = HandlerStack::create();
@@ -92,11 +97,11 @@ class ApiClient
         // so a hung GGG request raises a catchable ConnectionException instead
         // of a fatal error.
         $this->httpClient = new GuzzleClient([
-            'handler'         => $stack,
-            'base_uri'        => $this->config['base_url'] ?? 'https://api.pathofexile.com',
-            'timeout'         => $this->config['timeout'] ?? 12,
+            'handler' => $stack,
+            'base_uri' => $this->config['base_url'] ?? 'https://api.pathofexile.com',
+            'timeout' => $this->config['timeout'] ?? 12,
             'connect_timeout' => $this->config['connect_timeout'] ?? 5,
-            'http_errors'     => false,
+            'http_errors' => false,
         ]);
     }
 
@@ -107,8 +112,7 @@ class ApiClient
     /**
      * Set the OAuth token for authenticated requests.
      *
-     * @param Token $token The OAuth token to use
-     * @return self
+     * @param  Token  $token  The OAuth token to use
      */
     public function withToken(Token $token): self
     {
@@ -124,8 +128,7 @@ class ApiClient
      * new Token after a successful refresh. The old refresh token is
      * immediately invalidated by GGG.
      *
-     * @param Closure(Token): void $callback
-     * @return self
+     * @param  Closure(Token): void  $callback
      */
     public function onTokenRefresh(Closure $callback): self
     {
@@ -145,8 +148,7 @@ class ApiClient
      * The callback's own exceptions are suppressed: a failing listener must not
      * replace the refresh failure the caller is about to be told about.
      *
-     * @param Closure(\Exception): void $callback
-     * @return self
+     * @param  Closure(\Exception): void  $callback
      */
     public function onTokenRefreshFailure(Closure $callback): self
     {
@@ -161,8 +163,6 @@ class ApiClient
 
     /**
      * Account profile endpoint.
-     *
-     * @return ProfileResource
      */
     public function profile(): ProfileResource
     {
@@ -172,8 +172,7 @@ class ApiClient
     /**
      * Character endpoints (list and detail).
      *
-     * @param Realm|null $realm Game realm (null defaults to PC)
-     * @return CharacterResource
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function characters(?Realm $realm = null): CharacterResource
     {
@@ -183,9 +182,8 @@ class ApiClient
     /**
      * Stash tab endpoints for a specific league.
      *
-     * @param string     $league League name (e.g. "Standard", "Mirage")
-     * @param Realm|null $realm  Game realm (null defaults to PC)
-     * @return StashResource
+     * @param  string  $league  League name (e.g. "Standard", "Mirage")
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function stashes(string $league, ?Realm $realm = null): StashResource
     {
@@ -194,8 +192,6 @@ class ApiClient
 
     /**
      * Service league endpoints (list, detail, ladder).
-     *
-     * @return LeagueResource
      */
     public function leagues(): LeagueResource
     {
@@ -205,8 +201,7 @@ class ApiClient
     /**
      * Account league endpoints (includes private leagues).
      *
-     * @param Realm|null $realm Game realm (null defaults to PC)
-     * @return AccountLeagueResource
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function accountLeagues(?Realm $realm = null): AccountLeagueResource
     {
@@ -215,8 +210,6 @@ class ApiClient
 
     /**
      * Item filter endpoints (list, get, create, update).
-     *
-     * @return ItemFilterResource
      */
     public function itemFilters(): ItemFilterResource
     {
@@ -226,9 +219,8 @@ class ApiClient
     /**
      * League account endpoint (atlas passives).
      *
-     * @param string     $league League name
-     * @param Realm|null $realm  Game realm (null defaults to PC)
-     * @return LeagueAccountResource
+     * @param  string  $league  League name
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function leagueAccount(string $league, ?Realm $realm = null): LeagueAccountResource
     {
@@ -237,8 +229,6 @@ class ApiClient
 
     /**
      * PvP match endpoints.
-     *
-     * @return PvpMatchResource
      */
     public function pvpMatches(): PvpMatchResource
     {
@@ -248,8 +238,7 @@ class ApiClient
     /**
      * Guild endpoints (stash tabs).
      *
-     * @param Realm|null $realm Game realm (null defaults to PC)
-     * @return GuildResource
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function guild(?Realm $realm = null): GuildResource
     {
@@ -259,8 +248,7 @@ class ApiClient
     /**
      * Public stash tabs endpoint (OAuth version, service:psapi scope).
      *
-     * @param Realm|null $realm Game realm (null defaults to PC)
-     * @return PublicStashTabResource
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function publicStashTabs(?Realm $realm = null): PublicStashTabResource
     {
@@ -270,8 +258,7 @@ class ApiClient
     /**
      * Currency exchange endpoint.
      *
-     * @param Realm|null $realm Game realm (null defaults to PC)
-     * @return CurrencyExchangeResource
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function currencyExchange(?Realm $realm = null): CurrencyExchangeResource
     {
@@ -280,8 +267,6 @@ class ApiClient
 
     /**
      * Public API client (no auth required, different base URL).
-     *
-     * @return PublicApiClient
      */
     public function public(): PublicApiClient
     {
@@ -298,9 +283,8 @@ class ApiClient
      * Called by resource classes before making requests. Throws early
      * with a clear message instead of letting GGG return a cryptic 403.
      *
-     * @param Scope  $scope        Required scope
-     * @param string $resourceName Resource class name for the error message
-     * @return void
+     * @param  Scope  $scope  Required scope
+     * @param  string  $resourceName  Resource class name for the error message
      *
      * @throws AuthenticationException If no token is set or scope is missing
      */
@@ -312,7 +296,7 @@ class ApiClient
             );
         }
 
-        if (!$this->token->hasScope($scope)) {
+        if (! $this->token->hasScope($scope)) {
             throw new AuthenticationException(sprintf(
                 "%s requires scope '%s'. Token has: %s",
                 $resourceName,
@@ -329,9 +313,8 @@ class ApiClient
     /**
      * Make an authenticated GET request.
      *
-     * @param string $path  API path (e.g. "/profile", "/character")
-     * @param array  $query Query parameters
-     * @return ApiResponse
+     * @param  string  $path  API path (e.g. "/profile", "/character")
+     * @param  array  $query  Query parameters
      *
      * @throws VaalApiException
      */
@@ -343,10 +326,9 @@ class ApiClient
     /**
      * Make an authenticated POST request with JSON body.
      *
-     * @param string $path  API path
-     * @param array  $data  JSON body data
-     * @param array  $query Query parameters
-     * @return ApiResponse
+     * @param  string  $path  API path
+     * @param  array  $data  JSON body data
+     * @param  array  $query  Query parameters
      *
      * @throws VaalApiException
      */
@@ -354,7 +336,7 @@ class ApiClient
     {
         $options = ['json' => $data];
 
-        if (!empty($query)) {
+        if (! empty($query)) {
             $options['query'] = $query;
         }
 
@@ -367,16 +349,14 @@ class ApiClient
 
     /**
      * Get the OAuth provider for authorization flows.
-     *
-     * @return PathOfExileProvider
      */
     public function getAuthProvider(): PathOfExileProvider
     {
         if ($this->authProvider === null) {
             $this->authProvider = new PathOfExileProvider([
-                'clientId'     => $this->config['client_id'] ?? '',
+                'clientId' => $this->config['client_id'] ?? '',
                 'clientSecret' => $this->config['client_secret'] ?? '',
-                'redirectUri'  => $this->config['redirect_uri'] ?? '',
+                'redirectUri' => $this->config['redirect_uri'] ?? '',
             ]);
         }
 
@@ -400,12 +380,12 @@ class ApiClient
         }
 
         try {
-            $provider       = $this->getAuthProvider();
+            $provider = $this->getAuthProvider();
             $newAccessToken = $provider->getAccessToken('refresh_token', [
                 'refresh_token' => $this->token->refreshToken,
             ]);
 
-            $newToken    = Token::fromAccessToken($newAccessToken);
+            $newToken = Token::fromAccessToken($newAccessToken);
             $this->token = $newToken;
 
             if ($this->onTokenRefresh !== null) {
@@ -423,7 +403,7 @@ class ApiClient
             }
 
             throw new AuthenticationException(
-                'Token refresh failed: ' . $e->getMessage(),
+                'Token refresh failed: '.$e->getMessage(),
                 0,
                 $e,
             );
@@ -432,8 +412,6 @@ class ApiClient
 
     /**
      * Get the rate limiter instance.
-     *
-     * @return RateLimiter
      */
     public function getRateLimiter(): RateLimiter
     {
@@ -442,8 +420,6 @@ class ApiClient
 
     /**
      * Get the current token, if set.
-     *
-     * @return Token|null
      */
     public function getToken(): ?Token
     {
@@ -473,10 +449,9 @@ class ApiClient
      * 429 retry is handled by Guzzle middleware (see buildRetryMiddleware).
      * Pre-flight rate limiting prevents most 429s; middleware catches the rest.
      *
-     * @param string $method  HTTP method
-     * @param string $path    API path
-     * @param array  $options Guzzle request options
-     * @return ApiResponse
+     * @param  string  $method  HTTP method
+     * @param  string  $path  API path
+     * @param  array  $options  Guzzle request options
      *
      * @throws VaalApiException
      */
@@ -488,7 +463,7 @@ class ApiClient
         $policy = $this->guessPolicyForPath($path);
         if ($policy !== '') {
             $check = $this->rateLimiter->check($policy);
-            if (!$check->canProceed) {
+            if (! $check->canProceed) {
                 $this->handleRateLimit($check);
             }
         }
@@ -506,7 +481,7 @@ class ApiClient
         } catch (TransferException $e) {
             // Never got a response — connect/read timeout or network failure.
             throw new ConnectionException(
-                'GGG API did not respond: ' . $e->getMessage(),
+                'GGG API did not respond: '.$e->getMessage(),
                 previous: $e,
             );
         }
@@ -525,7 +500,7 @@ class ApiClient
         }
 
         // Handle error responses (429s already retried by middleware)
-        if (!$response->isSuccessful()) {
+        if (! $response->isSuccessful()) {
             $this->handleErrorResponse($response, $policy);
         }
 
@@ -535,19 +510,18 @@ class ApiClient
     /**
      * Automatically refresh the token if it's about to expire.
      *
-     * @return void
      *
      * @throws AuthenticationException
      */
     private function refreshTokenIfNeeded(): void
     {
-        if ($this->token === null || !$this->token->needsRefresh()) {
+        if ($this->token === null || ! $this->token->needsRefresh()) {
             return;
         }
 
         if (empty($this->token->refreshToken)) {
             throw new AuthenticationException(
-                'Access token ' . ($this->token->isExpired() ? 'expired' : 'expiring') . ' and no refresh token available'
+                'Access token '.($this->token->isExpired() ? 'expired' : 'expiring').' and no refresh token available'
             );
         }
 
@@ -563,11 +537,11 @@ class ApiClient
     {
         $headers = [
             'User-Agent' => $this->buildUserAgent(),
-            'Accept'     => 'application/json',
+            'Accept' => 'application/json',
         ];
 
         if ($this->token !== null) {
-            $headers['Authorization'] = 'Bearer ' . $this->token->accessToken;
+            $headers['Authorization'] = 'Bearer '.$this->token->accessToken;
         }
 
         return $headers;
@@ -577,14 +551,12 @@ class ApiClient
      * Build the User-Agent string per GGG requirements.
      *
      * Format: OAuth {clientId}/{version} (contact: {email})
-     *
-     * @return string
      */
     private function buildUserAgent(): string
     {
         $clientId = $this->config['client_id'] ?? 'unknown';
-        $version  = $this->config['user_agent']['version'] ?? '1.0.0';
-        $contact  = $this->config['user_agent']['contact'] ?? '';
+        $version = $this->config['user_agent']['version'] ?? '1.0.0';
+        $contact = $this->config['user_agent']['contact'] ?? '';
 
         $ua = "OAuth {$clientId}/{$version}";
 
@@ -600,8 +572,6 @@ class ApiClient
      *
      * Sleeps for the duration specified by Retry-After, then retries.
      * Falls back to exponential backoff if no Retry-After header.
-     *
-     * @return callable
      */
     private function buildRetryMiddleware(): callable
     {
@@ -636,31 +606,29 @@ class ApiClient
      * Called when the RateLimiter predicts we're about to exceed a limit.
      * This prevents 429s; the retry middleware handles any that slip through.
      *
-     * @param RateLimitResult $result The rate limit check result
-     * @return void
+     * @param  RateLimitResult  $result  The rate limit check result
      *
      * @throws RateLimitException
      */
     private function handleRateLimit(RateLimitResult $result): void
     {
         $strategyValue = $this->config['rate_limit']['strategy'] ?? 'sleep';
-        $strategy      = is_string($strategyValue)
+        $strategy = is_string($strategyValue)
             ? RateLimitStrategy::from($strategyValue)
             : $strategyValue;
 
         match ($strategy) {
-            RateLimitStrategy::Sleep     => sleep($result->waitSeconds),
+            RateLimitStrategy::Sleep => sleep($result->waitSeconds),
             RateLimitStrategy::Exception => throw new RateLimitException($result),
-            RateLimitStrategy::Callback  => $this->invokeRateLimitCallback($result),
-            RateLimitStrategy::Log       => $this->logRateLimit($result),
+            RateLimitStrategy::Callback => $this->invokeRateLimitCallback($result),
+            RateLimitStrategy::Log => $this->logRateLimit($result),
         };
     }
 
     /**
      * Invoke the user-provided rate limit callback.
      *
-     * @param RateLimitResult $result The rate limit check result
-     * @return void
+     * @param  RateLimitResult  $result  The rate limit check result
      */
     private function invokeRateLimitCallback(RateLimitResult $result): void
     {
@@ -674,8 +642,7 @@ class ApiClient
     /**
      * Log a rate limit warning via the configured PSR-3 logger.
      *
-     * @param RateLimitResult $result The rate limit check result
-     * @return void
+     * @param  RateLimitResult  $result  The rate limit check result
      */
     private function logRateLimit(RateLimitResult $result): void
     {
@@ -683,9 +650,9 @@ class ApiClient
 
         if ($logger instanceof LoggerInterface) {
             $logger->warning('Rate limit approaching', [
-                'policy'       => $result->policy,
+                'policy' => $result->policy,
                 'wait_seconds' => $result->waitSeconds,
-                'reason'       => $result->reason,
+                'reason' => $result->reason,
             ]);
         }
     }
@@ -696,16 +663,15 @@ class ApiClient
      * 429 responses that reach here have already exhausted retry middleware
      * (or middleware is disabled). They become RateLimitExceptions.
      *
-     * @param ApiResponse $response The API response
-     * @param string      $policy   The rate limit policy name
-     * @return void
+     * @param  ApiResponse  $response  The API response
+     * @param  string  $policy  The rate limit policy name
      *
      * @throws VaalApiException
      */
     private function handleErrorResponse(ApiResponse $response, string $policy): void
     {
-        $status  = $response->status();
-        $data    = $response->data();
+        $status = $response->status();
+        $data = $response->data();
         $message = $data['error']['message']
             ?? $data['error']
             ?? $data['message']
@@ -714,23 +680,23 @@ class ApiClient
         $rlHeaders = $this->lastRateLimitHeaders;
 
         match (true) {
-            $status === 429                  => throw new RateLimitException(
+            $status === 429 => throw new RateLimitException(
                 RateLimitResult::wait($policy, (int) ($response->header('Retry-After') ?? 60), $message),
                 responseBody: $data,
                 rateLimitHeaders: $rlHeaders,
             ),
             $status === 401, $status === 403 => throw new AuthenticationException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status === 404                  => throw new ResourceNotFoundException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status >= 400 && $status < 500  => throw new InvalidRequestException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status >= 500                   => throw new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            default                          => throw new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status === 404 => throw new ResourceNotFoundException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 400 && $status < 500 => throw new InvalidRequestException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 500 => throw new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            default => throw new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
         };
     }
 
     /**
      * Guess the rate limit policy for a path based on previous responses.
      *
-     * @param string $path API path
+     * @param  string  $path  API path
      * @return string Policy name, or empty string if unknown
      */
     private function guessPolicyForPath(string $path): string
@@ -747,34 +713,34 @@ class ApiClient
      *   /character/pc/SomeName -> /character/{name}
      *   /stash/Mirage/abc123  -> /stash/{league}/{id}
      *
-     * @param string $path API path
+     * @param  string  $path  API path
      * @return string Normalized path pattern
      */
     private function normalizePathForPolicy(string $path): string
     {
-        $path = '/' . ltrim($path, '/');
+        $path = '/'.ltrim($path, '/');
 
         $patterns = [
-            '#^/character(/\w+)?$#'            => '/character',
-            '#^/character(/\w+)?/.+$#'         => '/character/{name}',
-            '#^/stash(/\w+)?/[^/]+$#'          => '/stash/{league}',
-            '#^/stash(/\w+)?/[^/]+/.+$#'       => '/stash/{league}/{id}',
-            '#^/account/leagues#'              => '/account/leagues',
-            '#^/league-account#'              => '/league-account',
-            '#^/league/[^/]+/ladder$#'         => '/league/{id}/ladder',
-            '#^/league/[^/]+/event-ladder$#'   => '/league/{id}/event-ladder',
-            '#^/league/.+$#'                  => '/league/{id}',
-            '#^/league$#'                     => '/league',
-            '#^/item-filter/.+$#'             => '/item-filter/{id}',
-            '#^/item-filter$#'                => '/item-filter',
-            '#^/pvp-match/[^/]+/ladder$#'      => '/pvp-match/{id}/ladder',
-            '#^/pvp-match/.+$#'               => '/pvp-match/{id}',
-            '#^/pvp-match$#'                  => '/pvp-match',
+            '#^/character(/\w+)?$#' => '/character',
+            '#^/character(/\w+)?/.+$#' => '/character/{name}',
+            '#^/stash(/\w+)?/[^/]+$#' => '/stash/{league}',
+            '#^/stash(/\w+)?/[^/]+/.+$#' => '/stash/{league}/{id}',
+            '#^/account/leagues#' => '/account/leagues',
+            '#^/league-account#' => '/league-account',
+            '#^/league/[^/]+/ladder$#' => '/league/{id}/ladder',
+            '#^/league/[^/]+/event-ladder$#' => '/league/{id}/event-ladder',
+            '#^/league/.+$#' => '/league/{id}',
+            '#^/league$#' => '/league',
+            '#^/item-filter/.+$#' => '/item-filter/{id}',
+            '#^/item-filter$#' => '/item-filter',
+            '#^/pvp-match/[^/]+/ladder$#' => '/pvp-match/{id}/ladder',
+            '#^/pvp-match/.+$#' => '/pvp-match/{id}',
+            '#^/pvp-match$#' => '/pvp-match',
             '#^/guild(/\w+)?/stash/[^/]+/.+$#' => '/guild/stash/{league}/{id}',
-            '#^/guild(/\w+)?/stash/.+$#'       => '/guild/stash/{league}',
-            '#^/public-stash-tabs#'           => '/public-stash-tabs',
-            '#^/currency-exchange#'           => '/currency-exchange',
-            '#^/profile$#'                    => '/profile',
+            '#^/guild(/\w+)?/stash/.+$#' => '/guild/stash/{league}',
+            '#^/public-stash-tabs#' => '/public-stash-tabs',
+            '#^/currency-exchange#' => '/currency-exchange',
+            '#^/profile$#' => '/profile',
         ];
 
         foreach ($patterns as $pattern => $normalized) {
@@ -791,7 +757,7 @@ class ApiClient
      *
      * Filters to only X-Rate-Limit-* and Retry-After headers.
      *
-     * @param array $headers All response headers
+     * @param  array  $headers  All response headers
      * @return array<string, string> Rate limit headers with string values
      */
     private function extractRateLimitHeaders(array $headers): array
@@ -811,8 +777,6 @@ class ApiClient
 
     /**
      * Get the default realm from config.
-     *
-     * @return Realm|null
      */
     private function defaultRealm(): ?Realm
     {

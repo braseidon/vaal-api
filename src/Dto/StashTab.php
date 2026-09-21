@@ -11,7 +11,7 @@ namespace Braseidon\VaalApi\Dto;
 readonly class StashTab
 {
     /**
-     * @param array $data Raw stash tab response data
+     * @param  array  $data  Raw stash tab response data
      */
     public function __construct(
         private array $data,
@@ -20,8 +20,7 @@ readonly class StashTab
     /**
      * Create from a decoded API response array.
      *
-     * @param array $data Decoded JSON from /stash/{league}/{id}
-     * @return self
+     * @param  array  $data  Decoded JSON from /stash/{league}/{id}
      */
     public static function fromArray(array $data): self
     {
@@ -30,8 +29,6 @@ readonly class StashTab
 
     /**
      * The complete raw API response.
-     *
-     * @return array
      */
     public function raw(): array
     {
@@ -40,8 +37,6 @@ readonly class StashTab
 
     /**
      * Stash tab ID.
-     *
-     * @return string
      */
     public function id(): string
     {
@@ -50,8 +45,6 @@ readonly class StashTab
 
     /**
      * Tab display name.
-     *
-     * @return string
      */
     public function name(): string
     {
@@ -60,8 +53,6 @@ readonly class StashTab
 
     /**
      * Tab type (NormalStash, PremiumStash, etc.).
-     *
-     * @return string
      */
     public function type(): string
     {
@@ -70,8 +61,6 @@ readonly class StashTab
 
     /**
      * Items in this stash tab.
-     *
-     * @return array
      */
     public function items(): array
     {
@@ -80,8 +69,6 @@ readonly class StashTab
 
     /**
      * Tab metadata.
-     *
-     * @return array
      */
     public function metadata(): array
     {

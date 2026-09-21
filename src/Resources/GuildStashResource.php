@@ -16,9 +16,9 @@ use Braseidon\VaalApi\Enums\Scope;
 class GuildStashResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param string     $league League name
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  string  $league  League name
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -35,7 +35,7 @@ class GuildStashResource
     {
         $this->client->requireScope(Scope::GuildStashes, 'GuildStashResource');
 
-        $path     = $this->buildPath() . '/' . rawurlencode($this->league);
+        $path = $this->buildPath().'/'.rawurlencode($this->league);
         $response = $this->client->get($path);
 
         return array_map(
@@ -47,20 +47,19 @@ class GuildStashResource
     /**
      * Get a guild stash tab with items.
      *
-     * @param string      $stashId    Stash tab identifier
-     * @param string|null $substashId Optional substash ID for nested tabs
-     * @return StashTab
+     * @param  string  $stashId  Stash tab identifier
+     * @param  string|null  $substashId  Optional substash ID for nested tabs
      */
     public function get(string $stashId, ?string $substashId = null): StashTab
     {
         $this->client->requireScope(Scope::GuildStashes, 'GuildStashResource');
 
         $path = $this->buildPath()
-            . '/' . rawurlencode($this->league)
-            . '/' . rawurlencode($stashId);
+            .'/'.rawurlencode($this->league)
+            .'/'.rawurlencode($stashId);
 
         if ($substashId !== null) {
-            $path .= '/' . rawurlencode($substashId);
+            $path .= '/'.rawurlencode($substashId);
         }
 
         $response = $this->client->get($path);
@@ -70,17 +69,15 @@ class GuildStashResource
 
     /**
      * Build the guild stash base path with optional realm.
-     *
-     * @return string
      */
     private function buildPath(): string
     {
         $path = '/guild';
 
         if ($this->realm !== null) {
-            $path .= '/' . $this->realm->value;
+            $path .= '/'.$this->realm->value;
         }
 
-        return $path . '/stash';
+        return $path.'/stash';
     }
 }

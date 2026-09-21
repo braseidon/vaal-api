@@ -14,17 +14,17 @@ namespace Braseidon\VaalApi\RateLimit;
 readonly class RateLimitWindow
 {
     /**
-     * @param int $maxHits       Maximum allowed requests in this window
-     * @param int $period        Window duration in seconds
-     * @param int $penalty       Penalty duration in seconds if limit is exceeded
-     * @param int $currentHits   Current request count in this window
-     * @param int $activePenalty Remaining penalty seconds (0 = no penalty)
+     * @param  int  $maxHits  Maximum allowed requests in this window
+     * @param  int  $period  Window duration in seconds
+     * @param  int  $penalty  Penalty duration in seconds if limit is exceeded
+     * @param  int  $currentHits  Current request count in this window
+     * @param  int  $activePenalty  Remaining penalty seconds (0 = no penalty)
      */
     public function __construct(
         public int $maxHits,
         public int $period,
         public int $penalty,
-        public int $currentHits   = 0,
+        public int $currentHits = 0,
         public int $activePenalty = 0,
     ) {}
 
@@ -34,8 +34,7 @@ readonly class RateLimitWindow
      * A margin of 0.2 means we treat a 10-request limit as 8,
      * staying below the threshold to avoid penalties.
      *
-     * @param float $safetyMargin Fraction to reduce the limit by (0.0-1.0)
-     * @return int
+     * @param  float  $safetyMargin  Fraction to reduce the limit by (0.0-1.0)
      */
     public function effectiveMaxHits(float $safetyMargin): int
     {
@@ -44,8 +43,6 @@ readonly class RateLimitWindow
 
     /**
      * Whether this window is currently penalized (locked out).
-     *
-     * @return bool
      */
     public function isPenalized(): bool
     {
@@ -55,8 +52,7 @@ readonly class RateLimitWindow
     /**
      * Whether current usage has hit or exceeded the effective limit.
      *
-     * @param float $safetyMargin Safety margin fraction
-     * @return bool
+     * @param  float  $safetyMargin  Safety margin fraction
      */
     public function isAtLimit(float $safetyMargin): bool
     {
@@ -69,8 +65,7 @@ readonly class RateLimitWindow
      * Returns the active penalty if penalized, the window period if
      * at the limit, or 0 if requests are still available.
      *
-     * @param float $safetyMargin Safety margin fraction
-     * @return int
+     * @param  float  $safetyMargin  Safety margin fraction
      */
     public function waitSeconds(float $safetyMargin): int
     {

@@ -12,12 +12,12 @@ class ProfileTest extends TestCase
     protected function setUp(): void
     {
         $this->fixture = json_decode(
-            file_get_contents(__DIR__ . '/../../fixtures/profile.json'),
+            file_get_contents(__DIR__.'/../../fixtures/profile.json'),
             true,
         );
     }
 
-    public function testFromArray(): void
+    public function test_from_array(): void
     {
         $profile = Profile::fromArray($this->fixture);
 
@@ -28,10 +28,10 @@ class ProfileTest extends TestCase
         $this->assertNull($profile->guild);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
         $profile = Profile::fromArray($this->fixture);
-        $array   = $profile->toArray();
+        $array = $profile->toArray();
 
         $this->assertSame('a1b2c3d4-e5f6-7890-abcd-ef1234567890', $array['uuid']);
         $this->assertSame('ExileRunner#4821', $array['name']);

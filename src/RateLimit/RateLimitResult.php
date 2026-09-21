@@ -10,14 +10,14 @@ namespace Braseidon\VaalApi\RateLimit;
 readonly class RateLimitResult
 {
     /**
-     * @param bool   $canProceed  Whether the request can proceed
-     * @param int    $waitSeconds Seconds to wait before retrying
-     * @param string $policy      Policy name that triggered the limit
-     * @param string $reason      Human-readable reason for the wait
+     * @param  bool  $canProceed  Whether the request can proceed
+     * @param  int  $waitSeconds  Seconds to wait before retrying
+     * @param  string  $policy  Policy name that triggered the limit
+     * @param  string  $reason  Human-readable reason for the wait
      */
     public function __construct(
-        public bool   $canProceed,
-        public int    $waitSeconds,
+        public bool $canProceed,
+        public int $waitSeconds,
         public string $policy,
         public string $reason = '',
     ) {}
@@ -25,48 +25,44 @@ readonly class RateLimitResult
     /**
      * Create an "OK to proceed" result.
      *
-     * @param string $policy Policy name
-     * @return self
+     * @param  string  $policy  Policy name
      */
     public static function proceed(string $policy): self
     {
         return new self(
-            canProceed:  true,
+            canProceed: true,
             waitSeconds: 0,
-            policy:      $policy,
+            policy: $policy,
         );
     }
 
     /**
      * Create a "must wait" result.
      *
-     * @param string $policy  Policy name
-     * @param int    $seconds Seconds to wait
-     * @param string $reason  Why the wait is required
-     * @return self
+     * @param  string  $policy  Policy name
+     * @param  int  $seconds  Seconds to wait
+     * @param  string  $reason  Why the wait is required
      */
     public static function wait(string $policy, int $seconds, string $reason): self
     {
         return new self(
-            canProceed:  false,
+            canProceed: false,
             waitSeconds: $seconds,
-            policy:      $policy,
-            reason:      $reason,
+            policy: $policy,
+            reason: $reason,
         );
     }
 
     /**
      * Create a result for an unknown policy (first request, no data yet).
-     *
-     * @return self
      */
     public static function unknown(): self
     {
         return new self(
-            canProceed:  true,
+            canProceed: true,
             waitSeconds: 0,
-            policy:      '',
-            reason:      'No rate limit data available',
+            policy: '',
+            reason: 'No rate limit data available',
         );
     }
 }

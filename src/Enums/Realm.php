@@ -10,7 +10,7 @@ namespace Braseidon\VaalApi\Enums;
  */
 enum Realm: string
 {
-    case Pc   = 'pc';
+    case Pc = 'pc';
     case Xbox = 'xbox';
     case Sony = 'sony';
     case Poe2 = 'poe2';

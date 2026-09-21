@@ -8,15 +8,15 @@ use PHPUnit\Framework\TestCase;
 
 class TokenTest extends TestCase
 {
-    public function testFromArray(): void
+    public function test_from_array(): void
     {
         $token = Token::fromArray([
-            'access_token'  => 'test-access-token',
+            'access_token' => 'test-access-token',
             'refresh_token' => 'test-refresh-token',
-            'expires_at'    => time() + 3600,
-            'scope'         => 'account:profile account:characters',
-            'username'      => 'TestUser#1234',
-            'sub'           => 'uuid-123',
+            'expires_at' => time() + 3600,
+            'scope' => 'account:profile account:characters',
+            'username' => 'TestUser#1234',
+            'sub' => 'uuid-123',
         ]);
 
         $this->assertSame('test-access-token', $token->accessToken);
@@ -26,70 +26,70 @@ class TokenTest extends TestCase
         $this->assertSame('uuid-123', $token->sub);
     }
 
-    public function testToArray(): void
+    public function test_to_array(): void
     {
         $data = [
-            'access_token'  => 'test-access-token',
+            'access_token' => 'test-access-token',
             'refresh_token' => 'test-refresh-token',
-            'expires_at'    => 1700000000,
-            'scope'         => 'account:profile',
-            'username'      => 'TestUser#1234',
-            'sub'           => 'uuid-123',
+            'expires_at' => 1700000000,
+            'scope' => 'account:profile',
+            'username' => 'TestUser#1234',
+            'sub' => 'uuid-123',
         ];
 
         $token = Token::fromArray($data);
         $this->assertSame($data, $token->toArray());
     }
 
-    public function testIsExpired(): void
+    public function test_is_expired(): void
     {
         $expired = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() - 100,
+            'expires_at' => time() - 100,
         ]);
 
         $valid = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 3600,
+            'expires_at' => time() + 3600,
         ]);
 
         $this->assertTrue($expired->isExpired());
         $this->assertFalse($valid->isExpired());
     }
 
-    public function testNeedsRefresh(): void
+    public function test_needs_refresh(): void
     {
         $soonExpiring = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 10,
+            'expires_at' => time() + 10,
         ]);
 
         $fresh = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 3600,
+            'expires_at' => time() + 3600,
         ]);
 
         $this->assertTrue($soonExpiring->needsRefresh(300));
         $this->assertFalse($fresh->needsRefresh(300));
     }
 
-    public function testNeedsRefreshCustomBuffer(): void
+    public function test_needs_refresh_custom_buffer(): void
     {
         $token = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 60,
+            'expires_at' => time() + 60,
         ]);
 
         $this->assertTrue($token->needsRefresh(120));
         $this->assertFalse($token->needsRefresh(30));
     }
 
-    public function testHasScopeWithString(): void
+    public function test_has_scope_with_string(): void
     {
         $token = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 3600,
-            'scope'        => 'account:profile account:characters',
+            'expires_at' => time() + 3600,
+            'scope' => 'account:profile account:characters',
         ]);
 
         $this->assertTrue($token->hasScope('account:profile'));
@@ -97,12 +97,12 @@ class TokenTest extends TestCase
         $this->assertFalse($token->hasScope('account:stashes'));
     }
 
-    public function testHasScopeWithEnum(): void
+    public function test_has_scope_with_enum(): void
     {
         $token = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 3600,
-            'scope'        => 'account:profile account:stashes',
+            'expires_at' => time() + 3600,
+            'scope' => 'account:profile account:stashes',
         ]);
 
         $this->assertTrue($token->hasScope(Scope::Profile));
@@ -110,12 +110,12 @@ class TokenTest extends TestCase
         $this->assertFalse($token->hasScope(Scope::Characters));
     }
 
-    public function testHasScopeWithEmptyScope(): void
+    public function test_has_scope_with_empty_scope(): void
     {
         $token = Token::fromArray([
             'access_token' => 'test',
-            'expires_at'   => time() + 3600,
-            'scope'        => '',
+            'expires_at' => time() + 3600,
+            'scope' => '',
         ]);
 
         $this->assertFalse($token->hasScope(Scope::Profile));

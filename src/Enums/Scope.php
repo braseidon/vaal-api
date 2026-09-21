@@ -12,19 +12,19 @@ namespace Braseidon\VaalApi\Enums;
  */
 enum Scope: string
 {
-    case Profile             = 'account:profile';
-    case Characters          = 'account:characters';
-    case Stashes             = 'account:stashes';
-    case Leagues             = 'account:leagues';
-    case LeagueAccounts      = 'account:league_accounts';
-    case ItemFilter          = 'account:item_filter';
-    case GuildStashes        = 'account:guild:stashes';
+    case Profile = 'account:profile';
+    case Characters = 'account:characters';
+    case Stashes = 'account:stashes';
+    case Leagues = 'account:leagues';
+    case LeagueAccounts = 'account:league_accounts';
+    case ItemFilter = 'account:item_filter';
+    case GuildStashes = 'account:guild:stashes';
 
-    case ServiceLeagues      = 'service:leagues';
-    case ServiceLeaguesLadder    = 'service:leagues:ladder';
-    case ServicePsapi        = 'service:psapi';
-    case ServiceCxapi        = 'service:cxapi';
-    case ServicePvpMatches       = 'service:pvp_matches';
+    case ServiceLeagues = 'service:leagues';
+    case ServiceLeaguesLadder = 'service:leagues:ladder';
+    case ServicePsapi = 'service:psapi';
+    case ServiceCxapi = 'service:cxapi';
+    case ServicePvpMatches = 'service:pvp_matches';
     case ServicePvpMatchesLadder = 'service:pvp_matches:ladder';
 
     /**

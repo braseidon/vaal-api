@@ -17,7 +17,7 @@ class ApiResponse
     private ?RateLimitPolicy $rateLimitPolicy = null;
 
     /**
-     * @param ResponseInterface $response The underlying PSR-7 response
+     * @param  ResponseInterface  $response  The underlying PSR-7 response
      */
     public function __construct(
         private readonly ResponseInterface $response,
@@ -25,13 +25,11 @@ class ApiResponse
 
     /**
      * Decoded JSON response body.
-     *
-     * @return array
      */
     public function data(): array
     {
         if ($this->decodedBody === null) {
-            $body              = (string) $this->response->getBody();
+            $body = (string) $this->response->getBody();
             $this->decodedBody = json_decode($body, true) ?? [];
         }
 
@@ -40,8 +38,6 @@ class ApiResponse
 
     /**
      * HTTP status code.
-     *
-     * @return int
      */
     public function status(): int
     {
@@ -50,8 +46,6 @@ class ApiResponse
 
     /**
      * Whether the response has a 2xx status code.
-     *
-     * @return bool
      */
     public function isSuccessful(): bool
     {
@@ -62,8 +56,6 @@ class ApiResponse
      * Parsed rate limit policy from response headers.
      *
      * Returns null if no rate limit headers are present (e.g. /profile).
-     *
-     * @return RateLimitPolicy|null
      */
     public function rateLimitPolicy(): ?RateLimitPolicy
     {
@@ -79,12 +71,11 @@ class ApiResponse
     /**
      * Get a single response header value.
      *
-     * @param string $name Header name
-     * @return string|null
+     * @param  string  $name  Header name
      */
     public function header(string $name): ?string
     {
-        if (!$this->response->hasHeader($name)) {
+        if (! $this->response->hasHeader($name)) {
             return null;
         }
 
@@ -93,8 +84,6 @@ class ApiResponse
 
     /**
      * The underlying PSR-7 response.
-     *
-     * @return ResponseInterface
      */
     public function raw(): ResponseInterface
     {

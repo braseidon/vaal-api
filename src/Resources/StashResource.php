@@ -16,9 +16,9 @@ use Braseidon\VaalApi\Enums\Scope;
 class StashResource
 {
     /**
-     * @param ApiClient  $client Authenticated API client
-     * @param string     $league League name (e.g. "Standard", "Mirage")
-     * @param Realm|null $realm  Game realm (null defaults to PC)
+     * @param  ApiClient  $client  Authenticated API client
+     * @param  string  $league  League name (e.g. "Standard", "Mirage")
+     * @param  Realm|null  $realm  Game realm (null defaults to PC)
      */
     public function __construct(
         private readonly ApiClient $client,
@@ -38,7 +38,7 @@ class StashResource
     {
         $this->client->requireScope(Scope::Stashes, 'StashResource');
 
-        $path     = $this->buildPath('/stash') . '/' . rawurlencode($this->league);
+        $path = $this->buildPath('/stash').'/'.rawurlencode($this->league);
         $response = $this->client->get($path);
 
         return array_map(
@@ -53,20 +53,19 @@ class StashResource
      * Rate limit: stash-request-limit (15 req/10s, 30 req/5min)
      * Response size: ~207KB per tab.
      *
-     * @param string      $stashId    10-character hex stash ID
-     * @param string|null $substashId Optional substash ID for nested tabs
-     * @return StashTab
+     * @param  string  $stashId  10-character hex stash ID
+     * @param  string|null  $substashId  Optional substash ID for nested tabs
      */
     public function get(string $stashId, ?string $substashId = null): StashTab
     {
         $this->client->requireScope(Scope::Stashes, 'StashResource');
 
         $path = $this->buildPath('/stash')
-            . '/' . rawurlencode($this->league)
-            . '/' . rawurlencode($stashId);
+            .'/'.rawurlencode($this->league)
+            .'/'.rawurlencode($stashId);
 
         if ($substashId !== null) {
-            $path .= '/' . rawurlencode($substashId);
+            $path .= '/'.rawurlencode($substashId);
         }
 
         $response = $this->client->get($path);
@@ -77,13 +76,12 @@ class StashResource
     /**
      * Build a path with optional realm segment.
      *
-     * @param string $base Base path
-     * @return string
+     * @param  string  $base  Base path
      */
     private function buildPath(string $base): string
     {
         if ($this->realm !== null) {
-            return $base . '/' . $this->realm->value;
+            return $base.'/'.$this->realm->value;
         }
 
         return $base;
