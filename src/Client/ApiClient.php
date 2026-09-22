@@ -16,6 +16,7 @@ use Braseidon\VaalApi\Exceptions\ServerException;
 use Braseidon\VaalApi\Exceptions\VaalApiException;
 use Braseidon\VaalApi\RateLimit\RateLimiter;
 use Braseidon\VaalApi\RateLimit\RateLimitResult;
+use Braseidon\VaalApi\RateLimit\RateLimitStore;
 use Braseidon\VaalApi\Resources\AccountLeagueResource;
 use Braseidon\VaalApi\Resources\CharacterResource;
 use Braseidon\VaalApi\Resources\CurrencyExchangeResource;
@@ -57,9 +58,6 @@ class ApiClient
 
     private ?PathOfExileProvider $authProvider = null;
 
-    /** @var array<string, string> Maps URL patterns to known policy names */
-    private array $policyMap = [];
-
     /** @var array|null Rate limit headers from the last API response */
     private ?array $lastRateLimitHeaders = null;
 
@@ -72,7 +70,7 @@ class ApiClient
      *     redirect_uri?: string,
      *     scopes?: string[],
      *     user_agent?: array{version?: string, contact?: string},
-     *     rate_limit?: array{strategy?: string, safety_margin?: float, callback?: Closure, auto_retry?: bool, max_retries?: int},
+     *     rate_limit?: array{strategy?: string, safety_margin?: float, callback?: Closure, auto_retry?: bool, max_retries?: int, store?: RateLimitStore},
      *     timeout?: int,
      *     connect_timeout?: int,
      *     default_realm?: string|null,
@@ -85,7 +83,7 @@ class ApiClient
         private readonly array $config = [],
     ) {
         $safetyMargin = $this->config['rate_limit']['safety_margin'] ?? 0.2;
-        $this->rateLimiter = new RateLimiter($safetyMargin);
+        $this->rateLimiter = new RateLimiter($safetyMargin, $this->config['rate_limit']['store'] ?? null);
 
         $stack = HandlerStack::create();
 
@@ -491,7 +489,7 @@ class ApiClient
         if ($rateLimitPolicy !== null) {
             $responseHeaders = $response->raw()->getHeaders();
             $this->rateLimiter->recordResponse($responseHeaders);
-            $this->policyMap[$this->normalizePathForPolicy($path)] = $rateLimitPolicy->name;
+            $this->rateLimiter->rememberPolicyForPath($this->normalizePathForPolicy($path), $rateLimitPolicy->name);
 
             // Store rate limit headers for external consumers
             $this->lastRateLimitHeaders = $this->extractRateLimitHeaders($responseHeaders);
@@ -585,6 +583,12 @@ class ApiClient
 
                 if ($response === null) {
                     return false;
+                }
+
+                if ($response->getStatusCode() === 429) {
+                    // Record the lockout before this process waits it out, so
+                    // clients sharing the store stop instead of piling on.
+                    $this->rateLimiter->recordResponse($response->getHeaders());
                 }
 
                 return in_array($response->getStatusCode(), [429, 503], true);
@@ -701,9 +705,7 @@ class ApiClient
      */
     private function guessPolicyForPath(string $path): string
     {
-        $normalized = $this->normalizePathForPolicy($path);
-
-        return $this->policyMap[$normalized] ?? '';
+        return $this->rateLimiter->policyForPath($this->normalizePathForPolicy($path));
     }
 
     /**

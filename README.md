@@ -58,6 +58,30 @@ Rate limiting works in two layers:
 
 2. **Retry middleware** catches 429/503 responses that slip through pre-flight checks (e.g. on cold start when no state exists). Reads the `Retry-After` header and retries automatically.
 
+### Sharing rate limit state between processes
+
+By default each `ApiClient` remembers rate limit state only for its own lifetime. An app that builds a client per web request or per queue job never sees the state a previous client learned, so pre-flight checks never fire and every process runs into the lockout on its own. Pass a `RateLimitStore` that all processes can read, scoped to one account:
+
+```php
+use Braseidon\VaalApi\RateLimit\RateLimitStore;
+
+class CacheRateLimitStore implements RateLimitStore
+{
+    public function __construct(private string $prefix) {}
+
+    public function get(string $key): ?array { return Cache::get($this->prefix.$key); }
+    public function put(string $key, array $value, int $ttlSeconds): void { Cache::put($this->prefix.$key, $value, $ttlSeconds); }
+    public function forget(string $key): void { Cache::forget($this->prefix.$key); }
+}
+
+$client = new ApiClient([
+    ...config('vaal-api'),
+    'rate_limit' => ['store' => new CacheRateLimitStore("ggg-rate-limit:{$accountId}:")],
+]);
+```
+
+Stored state is a snapshot of one response's headers; waits count down from when it was recorded. A 429 is recorded before the retry middleware waits it out, so other processes stop instead of piling on. For web requests, pair the store with `'strategy' => 'exception'` and `'auto_retry' => false` so a request fails fast instead of holding a worker through a lockout.
+
 ### Rate limit strategy: callback
 
 The `callback` strategy lets you handle rate limits yourself. Pass a closure in the config array:
