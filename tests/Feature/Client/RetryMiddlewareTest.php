@@ -5,61 +5,41 @@ namespace Braseidon\VaalApi\Tests\Feature\Client;
 use Braseidon\VaalApi\Auth\Token;
 use Braseidon\VaalApi\Client\ApiClient;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\AuthenticationException;
+use Braseidon\VaalApi\Exceptions\InvalidRequestException;
 use Braseidon\VaalApi\Exceptions\RateLimitException;
 use Braseidon\VaalApi\Exceptions\ServerException;
-use GuzzleHttp\Client as GuzzleClient;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
+use Braseidon\VaalApi\Tests\Support\MocksInnermostHandler;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
+use Psr\Http\Message\RequestInterface;
 
 /**
- * Tests for the Guzzle retry middleware on ApiClient.
+ * The 429/503 retry middleware ApiClient's constructor installs.
  *
- * These tests build handler stacks that include both the retry middleware
- * and MockHandler, so the full retry pipeline is exercised.
+ * Clients are built through the constructor and only the network end of the
+ * stack is mocked (MocksInnermostHandler), so `auto_retry` and `max_retries`
+ * are exercised as the app sets them. The backoff Guzzle would sleep is read
+ * from the recorded attempts instead of waited.
  */
 class RetryMiddlewareTest extends TestCase
 {
+    use MocksInnermostHandler;
+
     /**
-     * Create an ApiClient whose Guzzle handler stack includes the retry middleware
-     * from buildRetryMiddleware() plus the given mock responses.
-     *
-     * @param  Response[]  $responses  Queued mock responses
-     * @param  array  $history  Passed by reference - collects request/response pairs
-     * @param  array  $config  Config overrides
+     * @param  array<int, mixed>  $responses  Queued mock responses
+     * @param  array<int, array{request: RequestInterface, delay: int|float|null}>  $attempts  Every request that reached the network end
+     * @param  array  $rateLimit  `rate_limit` config overrides
      */
-    private function createClientWithRetry(array $responses, array &$history = [], array $config = []): ApiClient
+    private function createClientWithRetry(array $responses, array &$attempts, array $rateLimit = []): ApiClient
     {
-        $client = new ApiClient(array_merge([
+        $client = new ApiClient([
             'client_id' => 'test-client',
-            'rate_limit' => [
-                'strategy' => 'exception',
-                'auto_retry' => true,
-                'max_retries' => 3,
-            ],
-        ], $config));
+            'rate_limit' => array_merge(['strategy' => 'exception'], $rateLimit),
+        ]);
+        $client->withToken($this->createValidToken());
 
-        // Extract the retry middleware via reflection
-        $ref = new \ReflectionMethod($client, 'buildRetryMiddleware');
-        $retryMiddleware = $ref->invoke($client);
-
-        // Build a stack with mock handler + retry middleware + history.
-        // History must be OUTER (pushed after retry) to capture all attempts -
-        // when inner to retry, the promise chain only records the final response.
-        $mock = new MockHandler($responses);
-        $stack = HandlerStack::create($mock);
-        $stack->push($retryMiddleware, 'retry_429');
-        $stack->push(Middleware::history($history), 'history');
-
-        // Inject the custom Guzzle client
-        $reflection = new \ReflectionClass($client);
-        $prop = $reflection->getProperty('httpClient');
-        $prop->setValue($client, new GuzzleClient([
-            'handler' => $stack,
-            'http_errors' => false,
-        ]));
+        $this->mockInnermostHandler($client, $responses, $attempts);
 
         return $client;
     }
@@ -74,76 +54,95 @@ class RetryMiddlewareTest extends TestCase
         ]);
     }
 
+    /**
+     * @param  array<int, array{request: RequestInterface, delay: int|float|null}>  $attempts
+     * @return array<int, int|float|null>
+     */
+    private function delays(array $attempts): array
+    {
+        return array_column($attempts, 'delay');
+    }
+
     // ---------------------------------------------------------------
     // Retry on 429
     // ---------------------------------------------------------------
 
     public function test_retries429_then_succeeds(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(200, [], json_encode(['name' => 'TestChar'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
         $response = $client->get('/profile');
 
         $this->assertTrue($response->isSuccessful());
         $this->assertSame('TestChar', $response->data()['name']);
-        $this->assertCount(2, $history, 'Should have made 2 requests (1 retry)');
+        $this->assertCount(2, $attempts, 'Should have made 2 requests (1 retry)');
     }
 
     public function test_retries_multiple429s_then_succeeds(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(200, [], json_encode(['ok' => true])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
         $response = $client->get('/profile');
 
         $this->assertTrue($response->isSuccessful());
-        $this->assertCount(3, $history, 'Should have made 3 requests (2 retries)');
+        $this->assertCount(3, $attempts, 'Should have made 3 requests (2 retries)');
     }
 
     public function test_throws_rate_limit_exception_after_max_retries(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
-        $this->expectException(RateLimitException::class);
-
-        $client->get('/character');
+        try {
+            $client->get('/character');
+            $this->fail('Expected RateLimitException');
+        } catch (RateLimitException) {
+            $this->assertCount(4, $attempts, 'the first request plus the default 3 retries');
+        }
     }
 
     public function test_max_retries_is_configurable(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
-        ], $history, [
-            'rate_limit' => [
-                'strategy' => 'exception',
-                'auto_retry' => true,
-                'max_retries' => 1,
-            ],
-        ]);
-        $client->withToken($this->createValidToken());
+            new Response(200, [], json_encode(['ok' => true])),
+        ], $attempts, ['max_retries' => 1]);
 
-        $this->expectException(RateLimitException::class);
+        try {
+            $client->get('/character');
+            $this->fail('Expected RateLimitException');
+        } catch (RateLimitException) {
+            $this->assertCount(2, $attempts, 'the first request plus 1 retry');
+        }
+    }
 
-        $client->get('/character');
+    public function test_the_retry_waits_for_the_retry_after_header_not_the_backoff(): void
+    {
+        $attempts = [];
+        $client = $this->createClientWithRetry([
+            new Response(429, ['Retry-After' => '7'], json_encode(['error' => 'Rate limited'])),
+            new Response(200, [], json_encode(['ok' => true])),
+        ], $attempts);
+
+        $client->get('/profile');
+
+        $this->assertSame([null, 7000], $this->delays($attempts), 'Retry-After 7 s is 7000 ms; the 2 s backoff would be 2000');
     }
 
     // ---------------------------------------------------------------
@@ -152,33 +151,37 @@ class RetryMiddlewareTest extends TestCase
 
     public function test_retries503_then_succeeds(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(503, [], json_encode(['error' => 'Maintenance'])),
             new Response(200, [], json_encode(['ok' => true])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
         $response = $client->get('/profile');
 
         $this->assertTrue($response->isSuccessful());
-        $this->assertCount(2, $history);
+        $this->assertCount(2, $attempts);
+        $this->assertSame([null, 2000], $this->delays($attempts), 'a 503 carries no Retry-After: the first backoff is 2 s');
     }
 
     public function test_throws_server_exception_after_max503_retries(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(503, [], json_encode(['error' => 'Maintenance'])),
             new Response(503, [], json_encode(['error' => 'Maintenance'])),
             new Response(503, [], json_encode(['error' => 'Maintenance'])),
             new Response(503, [], json_encode(['error' => 'Maintenance'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
-        $this->expectException(ServerException::class);
+        try {
+            $client->get('/profile');
+            $this->fail('Expected ServerException');
+        } catch (ServerException $e) {
+            $this->assertSame(503, $e->getCode());
+        }
 
-        $client->get('/profile');
+        $this->assertSame([null, 2000, 4000, 8000], $this->delays($attempts), 'exponential backoff: 2 s, 4 s, 8 s');
     }
 
     // ---------------------------------------------------------------
@@ -187,53 +190,50 @@ class RetryMiddlewareTest extends TestCase
 
     public function test_does_not_retry400(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(400, [], json_encode(['error' => 'Bad request'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+            new Response(200, [], json_encode(['ok' => true])),
+        ], $attempts);
 
         try {
             $client->get('/profile');
-        } catch (\Throwable) {
-            // Expected
+            $this->fail('Expected InvalidRequestException');
+        } catch (InvalidRequestException) {
+            $this->assertCount(1, $attempts, 'Should NOT retry 400 errors');
         }
-
-        $this->assertCount(1, $history, 'Should NOT retry 400 errors');
     }
 
     public function test_does_not_retry401(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(401, [], json_encode(['error' => 'Unauthorized'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+            new Response(200, [], json_encode(['ok' => true])),
+        ], $attempts);
 
         try {
             $client->get('/profile');
-        } catch (\Throwable) {
-            // Expected
+            $this->fail('Expected AuthenticationException');
+        } catch (AuthenticationException) {
+            $this->assertCount(1, $attempts, 'Should NOT retry 401 errors');
         }
-
-        $this->assertCount(1, $history, 'Should NOT retry 401 errors');
     }
 
     public function test_does_not_retry500(): void
     {
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(500, [], json_encode(['error' => 'Internal error'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+            new Response(200, [], json_encode(['ok' => true])),
+        ], $attempts);
 
         try {
             $client->get('/profile');
-        } catch (\Throwable) {
-            // Expected
+            $this->fail('Expected ServerException');
+        } catch (ServerException) {
+            $this->assertCount(1, $attempts, 'Should NOT retry 500 errors');
         }
-
-        $this->assertCount(1, $history, 'Should NOT retry 500 errors');
     }
 
     // ---------------------------------------------------------------
@@ -242,34 +242,23 @@ class RetryMiddlewareTest extends TestCase
 
     public function test_auto_retry_can_be_disabled(): void
     {
-        $client = new ApiClient([
-            'client_id' => 'test-client',
-            'rate_limit' => [
-                'strategy' => 'exception',
-                'auto_retry' => false,
-            ],
-        ]);
-
-        // Create a mock that returns 429 then 200 - if retry were active,
-        // the 200 would be returned. With retry disabled, we get the 429.
-        $mock = new MockHandler([
-            new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
+        $attempts = [];
+        // The app builds web-request clients this way. A 429 followed by a 200:
+        // with retry active the 200 comes back, with it off the 429 is thrown.
+        $client = $this->createClientWithRetry([
+            new Response(429, ['Retry-After' => '30'], json_encode(['error' => 'Rate limited'])),
             new Response(200, [], json_encode(['ok' => true])),
-        ]);
-        $stack = HandlerStack::create($mock);
+        ], $attempts, ['auto_retry' => false]);
 
-        $reflection = new \ReflectionClass($client);
-        $prop = $reflection->getProperty('httpClient');
-        $prop->setValue($client, new GuzzleClient([
-            'handler' => $stack,
-            'http_errors' => false,
-        ]));
+        try {
+            $client->get('/character');
+            $this->fail('Expected RateLimitException');
+        } catch (RateLimitException $e) {
+            $this->assertSame(30, $e->getRetryAfter());
+        }
 
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(RateLimitException::class);
-
-        $client->get('/character');
+        $this->assertCount(1, $attempts, 'no retry, so no wait either');
+        $this->assertSame([null], $this->delays($attempts));
     }
 
     // ---------------------------------------------------------------
@@ -285,12 +274,11 @@ class RetryMiddlewareTest extends TestCase
             'X-Rate-Limit-Account-State' => '2:10:0',
         ];
 
-        $history = [];
+        $attempts = [];
         $client = $this->createClientWithRetry([
             new Response(429, ['Retry-After' => '0'], json_encode(['error' => 'Rate limited'])),
             new Response(200, $rateLimitHeaders, json_encode(['id' => 'test'])),
-        ], $history);
-        $client->withToken($this->createValidToken());
+        ], $attempts);
 
         $client->get('/character/TestChar');
 
