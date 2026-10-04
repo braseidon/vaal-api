@@ -82,12 +82,14 @@ class PathOfExileProviderTest extends TestCase
 
     public function test_scope_separator_is_space(): void
     {
+        // A scope list is joined by the provider's separator.
         $url = $this->provider->getAuthorizationUrl([
-            'scope' => 'account:profile account:characters',
+            'scope' => ['account:profile', 'account:characters'],
         ]);
 
-        // Scope should be present in URL (space becomes + or %20)
-        $this->assertStringContainsString('scope=', $url);
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+        $this->assertSame('account:profile account:characters', $query['scope']);
     }
 
     /**

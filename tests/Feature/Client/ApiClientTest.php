@@ -10,19 +10,11 @@ use Braseidon\VaalApi\Exceptions\InvalidRequestException;
 use Braseidon\VaalApi\Exceptions\RateLimitException;
 use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Exceptions\ServerException;
-use Braseidon\VaalApi\Resources\CharacterResource;
-use Braseidon\VaalApi\Resources\CurrencyExchangeResource;
-use Braseidon\VaalApi\Resources\GuildResource;
-use Braseidon\VaalApi\Resources\ItemFilterResource;
-use Braseidon\VaalApi\Resources\LeagueResource;
-use Braseidon\VaalApi\Resources\ProfileResource;
 use Braseidon\VaalApi\Resources\Public\PublicApiClient;
-use Braseidon\VaalApi\Resources\PublicStashTabResource;
-use Braseidon\VaalApi\Resources\PvpMatchResource;
-use Braseidon\VaalApi\Resources\StashResource;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use PHPUnit\Framework\TestCase;
@@ -34,11 +26,13 @@ class ApiClientTest extends TestCase
      *
      * @param  Response[]  $responses  Queued mock responses
      * @param  array  $config  Client config overrides
+     * @param  array  $history  Filled with every request/response pair the mock saw
      */
-    private function createClientWithMock(array $responses, array $config = []): ApiClient
+    private function createClientWithMock(array $responses, array $config = [], array &$history = []): ApiClient
     {
         $mock = new MockHandler($responses);
         $handler = HandlerStack::create($mock);
+        $handler->push(Middleware::history($history));
 
         $client = new ApiClient(array_merge([
             'client_id' => 'test-client',
@@ -90,15 +84,48 @@ class ApiClientTest extends TestCase
     public function test_post_sends_json_body(): void
     {
         $body = json_encode(['id' => 'filter-1']);
+        $history = [];
         $client = $this->createClientWithMock([
             new Response(200, [], $body),
-        ]);
+        ], [], $history);
         $client->withToken($this->createValidToken());
 
-        $response = $client->post('/item-filter', ['name' => 'Test Filter']);
+        $response = $client->post('/item-filter', ['name' => 'Test Filter', 'type' => 'Normal']);
 
         $this->assertTrue($response->isSuccessful());
         $this->assertSame('filter-1', $response->data()['id']);
+
+        $request = $history[0]['request'];
+        $this->assertSame('POST', $request->getMethod());
+        // The mocked Guzzle client has no base URI, so the path stays relative.
+        $this->assertSame('item-filter', $request->getUri()->getPath());
+        $this->assertStringContainsString('application/json', $request->getHeaderLine('Content-Type'));
+        $this->assertSame(['name' => 'Test Filter', 'type' => 'Normal'], json_decode((string) $request->getBody(), true));
+        $this->assertSame('Bearer test-access-token', $request->getHeaderLine('Authorization'));
+    }
+
+    public function test_post_sends_query_parameters_alongside_the_body(): void
+    {
+        $history = [];
+        $client = $this->createClientWithMock([new Response(200, [], '{}')], [], $history);
+        $client->withToken($this->createValidToken());
+
+        $client->post('/item-filter', ['name' => 'Test Filter'], ['validate' => 'true']);
+
+        $request = $history[0]['request'];
+        $this->assertSame('validate=true', $request->getUri()->getQuery());
+        $this->assertSame(['name' => 'Test Filter'], json_decode((string) $request->getBody(), true));
+    }
+
+    public function test_requests_carry_the_bearer_token(): void
+    {
+        $history = [];
+        $client = $this->createClientWithMock([new Response(200, [], '{}')], [], $history);
+        $client->withToken($this->createValidToken());
+
+        $client->get('/profile');
+
+        $this->assertSame('Bearer test-access-token', $history[0]['request']->getHeaderLine('Authorization'));
     }
 
     // ---------------------------------------------------------------
@@ -263,33 +290,37 @@ class ApiClientTest extends TestCase
         $policy = $limiter->getPolicy('character-request-limit');
 
         $this->assertNotNull($policy);
+        $this->assertSame('character-request-limit', $policy->name);
+        $this->assertSame(['account'], array_keys($policy->rules));
+
+        $window = $policy->rules['account'][0];
+        $this->assertSame(5, $window->maxHits);
+        $this->assertSame(10, $window->period);
+        $this->assertSame(60, $window->penalty);
+        $this->assertSame(1, $window->currentHits);
+        $this->assertSame(0, $window->activePenalty);
     }
 
     // ---------------------------------------------------------------
     // Resource Accessors
     // ---------------------------------------------------------------
 
-    public function test_resource_accessors_return_correct_types(): void
+    public function test_public_hands_the_client_config_to_the_public_client(): void
     {
-        $client = new ApiClient(['client_id' => 'test']);
+        $client = new ApiClient([
+            'client_id' => 'my-app',
+            'user_agent' => ['version' => '2.0.0', 'contact' => 'dev@example.com'],
+            'public_url' => 'https://mirror.example.test',
+            'timeout' => 33,
+        ]);
 
-        $this->assertInstanceOf(ProfileResource::class, $client->profile());
-        $this->assertInstanceOf(CharacterResource::class, $client->characters());
-        $this->assertInstanceOf(LeagueResource::class, $client->leagues());
-        $this->assertInstanceOf(ItemFilterResource::class, $client->itemFilters());
-        $this->assertInstanceOf(PvpMatchResource::class, $client->pvpMatches());
-        $this->assertInstanceOf(GuildResource::class, $client->guild());
-        $this->assertInstanceOf(PublicStashTabResource::class, $client->publicStashTabs());
-        $this->assertInstanceOf(CurrencyExchangeResource::class, $client->currencyExchange());
-        $this->assertInstanceOf(PublicApiClient::class, $client->public());
-    }
+        $public = $client->public();
 
-    public function test_stash_resource_requires_league(): void
-    {
-        $client = new ApiClient(['client_id' => 'test']);
-        $stash = $client->stashes('Mirage');
-
-        $this->assertInstanceOf(StashResource::class, $stash);
+        $this->assertInstanceOf(PublicApiClient::class, $public);
+        $httpClient = (new \ReflectionProperty($public, 'httpClient'))->getValue($public);
+        $this->assertSame(33, $httpClient->getConfig('timeout'));
+        $this->assertSame('mirror.example.test', $httpClient->getConfig('base_uri')->getHost());
+        $this->assertSame('my-app/2.0.0 (contact: dev@example.com)', $httpClient->getConfig('headers')['User-Agent']);
     }
 
     public function test_stash_list_unwraps_stashes_key(): void
@@ -302,10 +333,10 @@ class ApiClientTest extends TestCase
 
         $tabs = $client->stashes('Standard')->list();
 
-        $this->assertCount(3, $tabs);
-        $this->assertSame('a1b2c3d4e5', $tabs[0]->id);
-        $this->assertSame('Currency', $tabs[0]->name);
-        $this->assertSame('Maps', $tabs[1]->name);
+        $this->assertCount(5, $tabs);
+        $this->assertSame('a01ab2c0b4', $tabs[0]->id);
+        $this->assertSame('$━━━━━━$', $tabs[0]->name);
+        $this->assertSame('· Maps', $tabs[3]->name);
     }
 
     public function test_stash_get_unwraps_stash_key(): void
@@ -522,9 +553,11 @@ class ApiClientTest extends TestCase
             $fired = true;
         });
 
-        $client->refreshToken();
+        $newToken = $client->refreshToken();
 
         $this->assertFalse($fired);
+        $this->assertSame('new-access-token', $newToken->accessToken);
+        $this->assertSame($newToken, $client->getToken());
     }
 
     // ---------------------------------------------------------------
