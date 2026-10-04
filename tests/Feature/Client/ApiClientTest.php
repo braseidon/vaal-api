@@ -10,6 +10,7 @@ use Braseidon\VaalApi\Exceptions\InvalidRequestException;
 use Braseidon\VaalApi\Exceptions\RateLimitException;
 use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Exceptions\ServerException;
+use Braseidon\VaalApi\Exceptions\VaalApiException;
 use Braseidon\VaalApi\Resources\Public\PublicApiClient;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
@@ -17,6 +18,7 @@ use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class ApiClientTest extends TestCase
@@ -175,77 +177,49 @@ class ApiClientTest extends TestCase
     // Error Handling
     // ---------------------------------------------------------------
 
-    public function test_throws_authentication_exception_on401(): void
+    /**
+     * A response body in GGG's documented error shape
+     * (`docs/ai/poe1/apis/_upstream/index.md` § Error Messages). Only code 2
+     * ("Invalid query") appears in the docs; the other codes here are stand-ins.
+     */
+    private function gggError(int $status, int $code, string $message, array $headers = []): Response
     {
-        $client = $this->createClientWithMock([
-            new Response(401, [], json_encode(['error' => 'Invalid token'])),
-        ]);
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(AuthenticationException::class);
-        $this->expectExceptionMessage('Invalid token');
-
-        $client->get('/profile');
+        return new Response($status, $headers, json_encode(['error' => ['code' => $code, 'message' => $message]]));
     }
 
-    public function test_throws_authentication_exception_on403(): void
+    /**
+     * @return array<string, array{int, class-string, string}>
+     */
+    public static function errorStatuses(): array
     {
-        $client = $this->createClientWithMock([
-            new Response(403, [], json_encode(['error' => 'Forbidden'])),
-        ]);
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(AuthenticationException::class);
-
-        $client->get('/profile');
+        return [
+            '401' => [401, AuthenticationException::class, 'Invalid token'],
+            '403' => [403, AuthenticationException::class, 'Forbidden'],
+            '404' => [404, ResourceNotFoundException::class, 'Resource not found'],
+            '400' => [400, InvalidRequestException::class, 'Invalid query'],
+            '500' => [500, ServerException::class, 'Internal error'],
+            '503' => [503, ServerException::class, 'Service unavailable'],
+        ];
     }
 
-    public function test_throws_resource_not_found_on404(): void
+    /**
+     * @param  class-string<\Throwable>  $exceptionClass
+     */
+    #[DataProvider('errorStatuses')]
+    public function test_an_error_status_throws_its_exception_with_ggg_s_message_as_a_string(int $status, string $exceptionClass, string $message): void
     {
-        $client = $this->createClientWithMock([
-            new Response(404, [], json_encode(['error' => 'Not found'])),
-        ]);
+        $client = $this->createClientWithMock([$this->gggError($status, 2, $message)]);
         $client->withToken($this->createValidToken());
 
-        $this->expectException(ResourceNotFoundException::class);
-
-        $client->get('/character/NonExistent');
-    }
-
-    public function test_throws_invalid_request_on400(): void
-    {
-        $client = $this->createClientWithMock([
-            new Response(400, [], json_encode(['error' => 'Bad request'])),
-        ]);
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(InvalidRequestException::class);
-
-        $client->get('/stash/Invalid');
-    }
-
-    public function test_throws_server_exception_on500(): void
-    {
-        $client = $this->createClientWithMock([
-            new Response(500, [], json_encode(['error' => 'Internal error'])),
-        ]);
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(ServerException::class);
-
-        $client->get('/profile');
-    }
-
-    public function test_throws_server_exception_on503(): void
-    {
-        $client = $this->createClientWithMock([
-            new Response(503, [], json_encode(['error' => 'Service unavailable'])),
-        ]);
-        $client->withToken($this->createValidToken());
-
-        $this->expectException(ServerException::class);
-
-        $client->get('/profile');
+        try {
+            $client->get('/profile');
+            $this->fail("Expected {$exceptionClass}");
+        } catch (VaalApiException $e) {
+            $this->assertInstanceOf($exceptionClass, $e);
+            $this->assertSame($message, $e->getMessage());
+            $this->assertSame($status, $e->getCode());
+            $this->assertSame(['error' => ['code' => 2, 'message' => $message]], $e->getResponseBody());
+        }
     }
 
     // ---------------------------------------------------------------
@@ -255,7 +229,7 @@ class ApiClientTest extends TestCase
     public function test_rate_limit_exception_on429(): void
     {
         $client = $this->createClientWithMock([
-            new Response(429, ['Retry-After' => '30'], json_encode(['error' => 'Rate limited'])),
+            $this->gggError(429, 3, 'Rate limit exceeded', ['Retry-After' => '30']),
         ]);
         $client->withToken($this->createValidToken());
 
@@ -265,7 +239,8 @@ class ApiClientTest extends TestCase
         } catch (RateLimitException $e) {
             $this->assertSame(429, $e->getCode());
             $this->assertSame(30, $e->getRetryAfter());
-            $this->assertSame('Rate limited', $e->getResponseBody()['error']);
+            $this->assertSame('Rate limit exceeded', $e->getRateLimitResult()->reason);
+            $this->assertSame(['error' => ['code' => 3, 'message' => 'Rate limit exceeded']], $e->getResponseBody());
         }
     }
 
