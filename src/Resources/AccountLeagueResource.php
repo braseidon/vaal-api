@@ -45,9 +45,16 @@ class AccountLeagueResource
 
         $response = $this->client->get($path);
 
+        $data = $response->data();
+
+        // GGG wraps the list: {"leagues": [...]}
+        if (! isset($data['leagues']) || ! is_array($data['leagues'])) {
+            throw new \UnexpectedValueException('GET '.$path.' returned no "leagues" list.');
+        }
+
         return array_map(
             fn (array $league) => League::fromArray($league),
-            $response->data()
+            $data['leagues']
         );
     }
 }
