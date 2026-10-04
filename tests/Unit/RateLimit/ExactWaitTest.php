@@ -188,6 +188,53 @@ class ExactWaitTest extends TestCase
         $this->assertSame(60, $result->waitSeconds);
     }
 
+    public function test_a_shorter_restriction_recorded_later_does_not_shorten_the_wait(): void
+    {
+        $store = new InMemoryRateLimitStore;
+        $limiter = $this->limiter($store);
+        $limiter->recordResponse(self::stashRead('16:10:0,16:300:0', retryAfter: 60));
+
+        $this->now += 1.0;
+        $limiter->recordResponse(self::stashRead('1:10:0,17:300:0', retryAfter: 10));
+
+        $result = $this->limiter($store)->check(self::POLICY);
+
+        $this->assertFalse($result->canProceed);
+        $this->assertSame(59, $result->waitSeconds, 'The 60 s restriction from 1 s ago, not the later 10 s one');
+    }
+
+    public function test_a_shorter_restrict_call_does_not_shorten_the_wait(): void
+    {
+        $store = new InMemoryRateLimitStore;
+        $limiter = $this->limiter($store);
+        $limiter->recordResponse(self::stashRead('1:10:0,1:300:0'));
+        $limiter->restrict(self::POLICY, 300, 'first');
+
+        $this->now += 1.0;
+        $limiter->restrict(self::POLICY, 60, 'second');
+
+        $result = $this->limiter($store)->check(self::POLICY);
+
+        $this->assertSame(299, $result->waitSeconds);
+        $this->assertSame('first', $result->reason);
+    }
+
+    public function test_a_retry_after_with_no_active_penalty_holds_for_exactly_its_seconds(): void
+    {
+        $limiter = $this->limiter();
+        $limiter->recordResponse(self::stashRead('1:10:0,1:300:0', retryAfter: 30));
+
+        $result = $limiter->check(self::POLICY);
+
+        $this->assertFalse($result->canProceed, 'Retry-After alone restricts: no window is full and no penalty is active');
+        $this->assertSame(30, $result->waitSeconds, 'GGG\'s stated wait takes no edge pad');
+        $this->assertSame('Retry-After header active', $result->reason);
+        $this->assertSame(0, $limiter->capacity(self::POLICY));
+
+        $this->now += 30.0;
+        $this->assertTrue($limiter->check(self::POLICY)->canProceed);
+    }
+
     public function test_recorded_hits_are_shared_through_the_store(): void
     {
         $store = new InMemoryRateLimitStore;
