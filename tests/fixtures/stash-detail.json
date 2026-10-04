@@ -1,30 +1,154 @@
 {
-    "id": "a1b2c3d4e5",
-    "n": "Currency",
-    "type": "CurrencyStash",
-    "i": 0,
-    "colour": "cc9900",
+  "stash": {
+    "id": "eeeac0167f",
+    "name": "· Essence",
+    "type": "EssenceStash",
+    "index": 9,
     "metadata": {
-        "public": true
+      "colour": "2c0059"
     },
     "items": [
-        {
-            "id": "item001",
-            "name": "",
-            "typeLine": "Chaos Orb",
-            "baseType": "Chaos Orb",
-            "stackSize": 42,
-            "maxStackSize": 20,
-            "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyRerollRare.png"
-        },
-        {
-            "id": "item002",
-            "name": "",
-            "typeLine": "Exalted Orb",
-            "baseType": "Exalted Orb",
-            "stackSize": 7,
-            "maxStackSize": 20,
-            "icon": "https://web.poecdn.com/image/Art/2DItems/Currency/CurrencyAddModToRare.png"
-        }
+      {
+        "verified": false,
+        "w": 1,
+        "h": 1,
+        "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRXNzZW5jZS9BbmdlcjUiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/19d11b6ceb/Anger5.png",
+        "stackSize": 3,
+        "maxStackSize": 10000,
+        "league": "Allflame",
+        "id": "4b9e584d9f1cc0b3be67e4293224322fec44ed80dd2ef6b183c7c911282a741d",
+        "name": "",
+        "typeLine": "Screaming Essence of Anger",
+        "baseType": "Screaming Essence of Anger",
+        "ilvl": 0,
+        "identified": true,
+        "properties": [
+          {
+            "name": "Stack Size",
+            "values": [
+              [
+                "3/10",
+                0
+              ]
+            ],
+            "displayMode": 0,
+            "type": 32
+          }
+        ],
+        "explicitMods": [
+          {
+            "description": "Upgrades a normal item to rare or reforges a rare item, guaranteeing one property"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Bow: Adds (110-150) to (223-260) Fire Damage"
+          },
+          {
+            "description": "Quiver: (36-41)% to Fire Resistance"
+          },
+          {
+            "description": "Two Handed Melee Weapon: Adds (110-150) to (223-260) Fire Damage"
+          },
+          {
+            "description": "Other Weapon: Adds (59-81) to (120-140) Fire Damage"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Armour: (36-41)% to Fire Resistance"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Belt: (36-41)% to Fire Resistance"
+          },
+          {
+            "description": "Other Jewellery: (23-26)% increased Fire Damage"
+          }
+        ],
+        "descrText": "Right click this item then left click a normal or rare item to apply it.",
+        "frameType": 5,
+        "frameTypeId": "Currency",
+        "x": 37,
+        "y": 0,
+        "inventoryId": "Stash1"
+      },
+      {
+        "verified": false,
+        "w": 1,
+        "h": 1,
+        "icon": "https://web.poecdn.com/gen/image/WzI1LDE0LHsiZiI6IjJESXRlbXMvQ3VycmVuY3kvRXNzZW5jZS9Db250ZW1wdDMiLCJ3IjoxLCJoIjoxLCJzY2FsZSI6MX1d/7347bf5d1c/Contempt3.png",
+        "stackSize": 1,
+        "maxStackSize": 10000,
+        "league": "Allflame",
+        "id": "ed4009e6aff6425f3e04f1406fee1177c8bfdb27dfb4dbdc3a0fb00d759d4703",
+        "name": "",
+        "typeLine": "Weeping Essence of Contempt",
+        "baseType": "Weeping Essence of Contempt",
+        "ilvl": 0,
+        "identified": true,
+        "properties": [
+          {
+            "name": "Stack Size",
+            "values": [
+              [
+                "1/10",
+                0
+              ]
+            ],
+            "displayMode": 0,
+            "type": 32
+          }
+        ],
+        "explicitMods": [
+          {
+            "description": "Upgrades a normal item to rare with one guaranteed property"
+          },
+          {
+            "description": "Properties restricted to level 60 and below"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Quiver: Adds (4-6) to (9-10) Physical Damage to Attacks"
+          },
+          {
+            "description": "One Handed Weapon: Adds (6-9) to (13-15) Physical Damage"
+          },
+          {
+            "description": "Two Handed Weapon: Adds (10-13) to (21-25) Physical Damage"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Gloves: Adds (3-4) to (6-7) Physical Damage to Attacks"
+          },
+          {
+            "description": "Other Armour: Reflects (11-24) Physical Damage to Melee Attackers"
+          },
+          {
+            "description": ""
+          },
+          {
+            "description": "Belt: Reflects (11-24) Physical Damage to Melee Attackers"
+          },
+          {
+            "description": "Other Jewellery: Adds (4-6) to (9-10) Physical Damage to Attacks"
+          }
+        ],
+        "descrText": "Right click this item then left click a normal item to apply it.",
+        "frameType": 5,
+        "frameTypeId": "Currency",
+        "x": 23,
+        "y": 0,
+        "inventoryId": "Stash1"
+      }
     ]
+  }
 }

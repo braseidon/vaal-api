@@ -5,6 +5,10 @@ namespace Braseidon\VaalApi\Tests\Unit\Dto;
 use Braseidon\VaalApi\Dto\StashTab;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * stash-detail.json is a trimmed real GET /stash/<league>/<id> response,
+ * {"stash": {...}}; StashResource unwraps `stash` before building the DTO.
+ */
 class StashTabTest extends TestCase
 {
     private array $fixture;
@@ -14,16 +18,16 @@ class StashTabTest extends TestCase
         $this->fixture = json_decode(
             file_get_contents(__DIR__.'/../../fixtures/stash-detail.json'),
             true,
-        );
+        )['stash'];
     }
 
     public function test_accessors(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
-        $this->assertSame('a1b2c3d4e5', $tab->id());
-        $this->assertSame('Currency', $tab->name());
-        $this->assertSame('CurrencyStash', $tab->type());
+        $this->assertSame('eeeac0167f', $tab->id());
+        $this->assertSame('· Essence', $tab->name());
+        $this->assertSame('EssenceStash', $tab->type());
     }
 
     public function test_items(): void
@@ -31,15 +35,16 @@ class StashTabTest extends TestCase
         $tab = StashTab::fromArray($this->fixture);
 
         $this->assertCount(2, $tab->items());
-        $this->assertSame('Chaos Orb', $tab->items()[0]['typeLine']);
-        $this->assertSame('Exalted Orb', $tab->items()[1]['typeLine']);
+        $this->assertSame('Screaming Essence of Anger', $tab->items()[0]['typeLine']);
+        $this->assertSame(3, $tab->items()[0]['stackSize']);
+        $this->assertSame('Weeping Essence of Contempt', $tab->items()[1]['typeLine']);
     }
 
     public function test_metadata(): void
     {
         $tab = StashTab::fromArray($this->fixture);
 
-        $this->assertTrue($tab->metadata()['public']);
+        $this->assertSame('2c0059', $tab->metadata()['colour']);
     }
 
     public function test_raw(): void
