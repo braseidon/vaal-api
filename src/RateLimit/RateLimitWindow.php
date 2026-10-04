@@ -60,10 +60,14 @@ readonly class RateLimitWindow
     }
 
     /**
-     * Seconds to wait before this window allows another request.
+     * Seconds to wait before this window allows another request, judged from
+     * this one header snapshot alone.
      *
      * Returns the active penalty if penalized, the window period if
-     * at the limit, or 0 if requests are still available.
+     * at the limit, or 0 if requests are still available. The period is the
+     * longest the wait can be: the header counts hits without their times.
+     * RateLimiter::check() works out the exact wait from the hit times it
+     * recorded and does not call this.
      *
      * @param  float  $safetyMargin  Safety margin fraction
      */

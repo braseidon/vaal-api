@@ -17,14 +17,41 @@ use Closure;
  * processes act for the same account, or each process learns about a
  * lockout only by running into it.
  *
- * Recorded state is a snapshot of one response's headers. Every wait is
- * counted down by the seconds elapsed since that response was recorded.
+ * Per policy, kept in the store so every process acting for the account
+ * reads them:
+ *
+ * - the latest response's headers, which give the windows (hits, period,
+ *   penalty) and GGG's own hit count at the moment that response landed;
+ * - the time every response landed. GGG's state header counts hits but never
+ *   says when they happened, and a full window frees its first slot when its
+ *   oldest hit ages out, so the times are what make the wait exact;
+ * - a restriction's end time (below).
+ *
+ * The hit times are a read-then-write on the store with no lock, so two
+ * processes recording at the same instant can lose one time. The next
+ * response's header count then exceeds the recorded hits and covers it.
+ *
+ * A hit is timed when its response lands, which is never earlier than GGG
+ * received the request, so the wait it yields is never shorter than GGG's.
+ * When GGG's header counts more hits than the limiter recorded (another
+ * process, a write lost between processes), the extra hits are assumed to
+ * have happened the moment that response landed: the latest they could have,
+ * so they age out no earlier than GGG lets them.
+ *
+ * A restricted state (Retry-After, or a non-zero third field in a state
+ * header) is kept apart as a "blocked until" time that only ever moves later,
+ * so a response that GGG answered before the restriction but that landed
+ * after it cannot lift it.
  */
 class RateLimiter
 {
     private const POLICY_KEY = 'policy:';
 
     private const PATH_KEY = 'path:';
+
+    private const HITS_KEY = 'hits:';
+
+    private const BLOCK_KEY = 'block:';
 
     private readonly RateLimitStore $store;
 
@@ -36,7 +63,7 @@ class RateLimiter
     /**
      * @param  float  $safetyMargin  Fraction to reduce limits by (0.0-1.0, default 0.2 = 20%)
      * @param  RateLimitStore|null  $store  Where state is kept; defaults to this limiter's own memory
-     * @param  Closure|null  $clock  Returns the current Unix time in seconds; defaults to time()
+     * @param  Closure|null  $clock  Returns the current Unix time in seconds (int or float); defaults to microtime(true)
      */
     public function __construct(
         private readonly float $safetyMargin = 0.2,
@@ -44,13 +71,14 @@ class RateLimiter
         ?Closure $clock = null,
     ) {
         $this->store = $store ?? new InMemoryRateLimitStore;
-        $this->clock = $clock ?? fn (): int => time();
+        $this->clock = $clock ?? fn (): float => microtime(true);
     }
 
     /**
      * Record rate limit state from a response.
      *
-     * Call this after every API response to keep the tracker current.
+     * Call this once for every response GGG sent, including a 429: each one
+     * is a hit GGG counted.
      *
      * @param  array  $headers  Response headers
      * @return RateLimitPolicy|null Parsed policy, or null if no rate limit headers
@@ -59,13 +87,36 @@ class RateLimiter
     {
         $policy = RateLimitPolicy::fromHeaders($headers);
 
-        if ($policy !== null) {
-            $this->store->put(self::POLICY_KEY.$policy->name, [
-                'headers' => self::rateLimitHeaders($headers),
-                'recorded_at' => $this->now(),
-            ], self::relevantFor($policy));
-            $this->recorded[$policy->name] = true;
+        if ($policy === null) {
+            return null;
         }
+
+        $now = $this->now();
+        $longest = self::longestPeriod($policy);
+
+        $this->store->put(self::POLICY_KEY.$policy->name, [
+            'headers' => self::rateLimitHeaders($headers),
+            'recorded_at' => $now,
+        ], self::relevantFor($policy));
+
+        $hits = array_values(array_filter(
+            $this->hitTimes($policy->name),
+            fn (float $at): bool => $at + $longest > $now,
+        ));
+        $hits[] = $now;
+        $this->store->put(self::HITS_KEY.$policy->name, ['at' => $hits], max(1, $longest));
+
+        [$until, $reason] = self::restriction($policy, $now);
+        $block = $this->store->get(self::BLOCK_KEY.$policy->name);
+
+        if ($until > $now && $until > (float) ($block['until'] ?? 0)) {
+            $this->store->put(self::BLOCK_KEY.$policy->name, [
+                'until' => $until,
+                'reason' => $reason,
+            ], max(1, (int) ceil($until - $now)));
+        }
+
+        $this->recorded[$policy->name] = true;
 
         return $policy;
     }
@@ -81,41 +132,66 @@ class RateLimiter
      */
     public function check(string $policy): RateLimitResult
     {
-        $entry = $this->store->get(self::POLICY_KEY.$policy);
-        $state = $entry === null ? null : RateLimitPolicy::fromHeaders($entry['headers'] ?? []);
+        $state = $this->state($policy);
 
         if ($state === null) {
             return RateLimitResult::unknown();
         }
 
-        $elapsed = max(0, $this->now() - (int) ($entry['recorded_at'] ?? 0));
+        [$now, $blockedUntil, $blockReason, $windows] = $state;
 
-        // Retry-After takes priority (active 429)
-        if ($state->retryAfter !== null && $state->retryAfter - $elapsed > 0) {
-            return RateLimitResult::wait($policy, $state->retryAfter - $elapsed, 'Retry-After header active');
+        if ($blockedUntil > $now) {
+            return RateLimitResult::wait($policy, self::seconds($blockedUntil - $now), $blockReason);
         }
 
-        $maxWait = 0;
+        $maxWait = 0.0;
         $reason = '';
 
-        foreach ($state->rules as $ruleName => $windows) {
-            foreach ($windows as $window) {
-                $wait = $window->waitSeconds($this->safetyMargin) - $elapsed;
+        foreach ($windows as [$ruleName, $window, $expiries]) {
+            $wait = self::waitForOne($window, $expiries, $this->safetyMargin, $now);
 
-                if ($wait > $maxWait) {
-                    $maxWait = $wait;
-                    $reason = $window->isPenalized()
-                        ? "Rule '{$ruleName}' is penalized for {$wait}s"
-                        : "Rule '{$ruleName}' at limit ({$window->currentHits}/{$window->maxHits})";
-                }
+            if ($wait > $maxWait) {
+                $maxWait = $wait;
+                $reason = sprintf("Rule '%s' at limit (%d/%d)", $ruleName, count($expiries), $window->maxHits);
             }
         }
 
         if ($maxWait > 0) {
-            return RateLimitResult::wait($policy, $maxWait, $reason);
+            return RateLimitResult::wait($policy, self::seconds($maxWait), $reason);
         }
 
         return RateLimitResult::proceed($policy);
+    }
+
+    /**
+     * How many requests may go out for this policy right now without
+     * overfilling any of its windows (safety margin applied).
+     *
+     * Null before the first response for the policy: the limits are unknown,
+     * so a caller sends one request and learns them. Zero while restricted.
+     */
+    public function capacity(string $policy): ?int
+    {
+        $state = $this->state($policy);
+
+        if ($state === null) {
+            return null;
+        }
+
+        [$now, $blockedUntil, , $windows] = $state;
+
+        if ($blockedUntil > $now) {
+            return 0;
+        }
+
+        $capacity = PHP_INT_MAX;
+
+        foreach ($windows as [, $window, $expiries]) {
+            $capacity = min($capacity, max(0, $window->effectiveMaxHits($this->safetyMargin) - count($expiries)));
+        }
+
+        // A policy whose headers carried no usable window has no figure to send against.
+        return $capacity === PHP_INT_MAX ? null : $capacity;
     }
 
     /**
@@ -192,14 +268,174 @@ class RateLimiter
     {
         foreach (array_keys($this->recorded) as $policy) {
             $this->store->forget(self::POLICY_KEY.$policy);
+            $this->store->forget(self::HITS_KEY.$policy);
+            $this->store->forget(self::BLOCK_KEY.$policy);
         }
 
         $this->recorded = [];
     }
 
-    private function now(): int
+    private function now(): float
     {
-        return ($this->clock)();
+        return (float) ($this->clock)();
+    }
+
+    /**
+     * Everything a check needs, read once: the current time, the restriction,
+     * and for every window the times its counted hits age out, soonest first.
+     *
+     * @return array{0: float, 1: float, 2: string, 3: list<array{0: string, 1: RateLimitWindow, 2: list<float>}>}|null
+     */
+    private function state(string $policy): ?array
+    {
+        $entry = $this->store->get(self::POLICY_KEY.$policy);
+        $state = $entry === null ? null : RateLimitPolicy::fromHeaders($entry['headers'] ?? []);
+
+        if ($state === null) {
+            return null;
+        }
+
+        $now = $this->now();
+        $recordedAt = (float) ($entry['recorded_at'] ?? 0);
+        $hits = $this->hitTimes($policy);
+
+        // The restriction the latest response carries, and the stored one,
+        // which a later-landing response cannot have overwritten.
+        [$blockedUntil, $blockReason] = self::restriction($state, $recordedAt);
+        $block = $this->store->get(self::BLOCK_KEY.$policy);
+
+        if ($block !== null && (float) ($block['until'] ?? 0) > $blockedUntil) {
+            $blockedUntil = (float) $block['until'];
+            $blockReason = (string) ($block['reason'] ?? $blockReason);
+        }
+
+        $windows = [];
+
+        foreach ($state->rules as $ruleName => $ruleWindows) {
+            foreach ($ruleWindows as $window) {
+                $windows[] = [$ruleName, $window, self::expiries($window, $hits, $recordedAt, $now)];
+            }
+        }
+
+        return [$now, $blockedUntil, $blockReason, $windows];
+    }
+
+    /**
+     * The times this window's counted hits age out, soonest first.
+     *
+     * Our own hits age out a period after they landed. When GGG's count at
+     * the latest response exceeds the hits we recorded inside that window,
+     * the difference ages out a period after that response.
+     *
+     * @param  list<float>  $hits  Landing times of every recorded response
+     * @return list<float>
+     */
+    private static function expiries(RateLimitWindow $window, array $hits, float $recordedAt, float $now): array
+    {
+        $period = (float) $window->period;
+        $expiries = [];
+        $recordedInWindow = 0;
+
+        foreach ($hits as $at) {
+            if ($at + $period > $now) {
+                $expiries[] = $at + $period;
+            }
+
+            if ($at <= $recordedAt && $at > $recordedAt - $period) {
+                $recordedInWindow++;
+            }
+        }
+
+        if ($recordedAt + $period > $now) {
+            $unseen = max(0, $window->currentHits - $recordedInWindow);
+            array_push($expiries, ...array_fill(0, $unseen, $recordedAt + $period));
+        }
+
+        sort($expiries);
+
+        return $expiries;
+    }
+
+    /**
+     * Seconds until this window has room for one more request.
+     *
+     * @param  list<float>  $expiries  Soonest first
+     */
+    private static function waitForOne(RateLimitWindow $window, array $expiries, float $safetyMargin, float $now): float
+    {
+        $allowed = $window->effectiveMaxHits($safetyMargin);
+        $count = count($expiries);
+
+        if ($count < $allowed) {
+            return 0.0;
+        }
+
+        // A margin that leaves no hit at all: the window never has room, so
+        // wait it out whole rather than report it free.
+        if ($allowed < 1) {
+            return $count === 0 ? (float) $window->period : end($expiries) - $now;
+        }
+
+        // Room for one more once all but ($allowed - 1) hits have aged out.
+        return $expiries[$count - $allowed] - $now;
+    }
+
+    /**
+     * When a restriction in this policy's headers ends, and why.
+     *
+     * @return array{0: float, 1: string}
+     */
+    private static function restriction(RateLimitPolicy $policy, float $recordedAt): array
+    {
+        $seconds = $policy->retryAfter ?? 0;
+        $reason = $seconds > 0 ? 'Retry-After header active' : '';
+
+        foreach ($policy->rules as $ruleName => $windows) {
+            foreach ($windows as $window) {
+                if ($window->activePenalty > $seconds) {
+                    $seconds = $window->activePenalty;
+                    $reason = "Rule '{$ruleName}' is penalized for {$window->activePenalty}s";
+                }
+            }
+        }
+
+        return [$recordedAt + $seconds, $reason];
+    }
+
+    /**
+     * @return list<float>
+     */
+    private function hitTimes(string $policy): array
+    {
+        $at = $this->store->get(self::HITS_KEY.$policy)['at'] ?? [];
+
+        return is_array($at) ? array_map('floatval', array_values($at)) : [];
+    }
+
+    private static function longestPeriod(RateLimitPolicy $policy): int
+    {
+        $longest = 0;
+
+        foreach ($policy->rules as $windows) {
+            foreach ($windows as $window) {
+                $longest = max($longest, $window->period);
+            }
+        }
+
+        return $longest;
+    }
+
+    /**
+     * Whole seconds to wait, rounded up so the wait never ends early.
+     *
+     * The microsecond taken off first absorbs float noise in Unix timestamps
+     * (a 6 s wait computed as 6.0000000002 s), which would otherwise add a
+     * whole second; a microsecond is far below the request latency already
+     * built into every hit time.
+     */
+    private static function seconds(float $wait): int
+    {
+        return max(0, (int) ceil($wait - 0.000001));
     }
 
     /**
