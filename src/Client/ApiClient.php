@@ -34,6 +34,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
+use GuzzleHttp\Pool;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
@@ -63,6 +64,9 @@ class ApiClient
 
     private const MAX_RETRIES = 3;
 
+    /** Guzzle request option: skip the 429/503 retry middleware for this request. */
+    private const NO_RETRY_OPTION = 'vaal_api_no_retry';
+
     /**
      * @param array{
      *     client_id?: string,
@@ -70,7 +74,7 @@ class ApiClient
      *     redirect_uri?: string,
      *     scopes?: string[],
      *     user_agent?: array{version?: string, contact?: string},
-     *     rate_limit?: array{strategy?: string, safety_margin?: float, callback?: Closure, auto_retry?: bool, max_retries?: int, store?: RateLimitStore},
+     *     rate_limit?: array{strategy?: string, safety_margin?: float, callback?: Closure, auto_retry?: bool, max_retries?: int, store?: RateLimitStore, clock?: Closure},
      *     timeout?: int,
      *     connect_timeout?: int,
      *     default_realm?: string|null,
@@ -83,7 +87,12 @@ class ApiClient
         private readonly array $config = [],
     ) {
         $safetyMargin = $this->config['rate_limit']['safety_margin'] ?? 0.2;
-        $this->rateLimiter = new RateLimiter($safetyMargin, $this->config['rate_limit']['store'] ?? null);
+        // `clock` (Unix seconds, int or float) exists for tests that fake time.
+        $this->rateLimiter = new RateLimiter(
+            $safetyMargin,
+            $this->config['rate_limit']['store'] ?? null,
+            $this->config['rate_limit']['clock'] ?? null,
+        );
 
         $stack = HandlerStack::create();
 
@@ -322,6 +331,93 @@ class ApiClient
     }
 
     /**
+     * Make several authenticated GET requests, sending as many at once as the
+     * rate limit window allows.
+     *
+     * Requests go out in rounds through one Guzzle pool (curl_multi, this
+     * process). Each round is sized to the hits left in every window of the
+     * policy (RateLimiter::capacity()), so no round can overfill a window; the
+     * limiter is re-read between rounds and every response is recorded into
+     * it as it lands. When no hit is left, the configured strategy waits
+     * (sleep / callback) or refuses (exception) exactly as for get().
+     *
+     * Until a response has told the limiter the policy for these paths, one
+     * request goes out alone: with the limits unknown, the only safe round is
+     * a single request.
+     *
+     * Every request of a round is in flight before the first response lands,
+     * so a 429 cannot recall the rest of its round; it stops the batch from
+     * sending anything more until its wait is over. The retry middleware does
+     * not retry inside a round, the 429 is recorded (its Retry-After and
+     * penalty become a hard wait), and its key goes back to the queue for the
+     * next round, which starts only after that wait. A 429 that carries neither Retry-After nor
+     * an active penalty is treated as the policy's longest penalty; one with
+     * no rate limit headers at all ends the batch. After `max_retries` rounds
+     * that drew a 429 the remaining keys fail.
+     *
+     * Paths should share one rate limit policy (stash tab reads, for example).
+     *
+     * @param  array<array-key, string>  $paths  API paths, keyed as the caller wants results keyed
+     * @param  (Closure(array-key, ApiResponse|VaalApiException): void)|null  $onResult  Called as each key settles
+     * @return BatchResult<ApiResponse>
+     */
+    public function getMany(array $paths, ?Closure $onResult = null): BatchResult
+    {
+        $pending = $paths;
+        $responses = [];
+        $failures = [];
+        $roundsRateLimited = 0;
+        $maxRetries = $this->config['rate_limit']['max_retries'] ?? self::MAX_RETRIES;
+
+        $settle = function (int|string $key, ApiResponse|VaalApiException $result) use (&$pending, &$responses, &$failures, $onResult): void {
+            unset($pending[$key]);
+
+            if ($result instanceof ApiResponse) {
+                $responses[$key] = $result;
+            } else {
+                $failures[$key] = $result;
+            }
+
+            if ($onResult !== null) {
+                $onResult($key, $result);
+            }
+        };
+
+        $fail = function (array $keys, VaalApiException $e) use ($settle): void {
+            foreach ($keys as $key) {
+                $settle($key, $e);
+            }
+        };
+
+        while ($pending !== []) {
+            try {
+                $this->refreshTokenIfNeeded();
+                $size = $this->roundSize($pending);
+            } catch (VaalApiException $e) {
+                $fail(array_keys($pending), $e);
+                break;
+            }
+
+            $outcome = $this->sendRound(array_slice($pending, 0, $size, true), $settle);
+
+            if ($outcome['abort'] !== null) {
+                $fail(array_keys($pending), $outcome['abort']);
+                break;
+            }
+
+            if ($outcome['rateLimited'] !== null && ++$roundsRateLimited > $maxRetries) {
+                $fail(array_keys($pending), $outcome['rateLimited']);
+                break;
+            }
+        }
+
+        return new BatchResult(
+            self::inKeyOrder($responses, $paths),
+            self::inKeyOrder($failures, $paths),
+        );
+    }
+
+    /**
      * Make an authenticated POST request with JSON body.
      *
      * @param  string  $path  API path
@@ -484,25 +580,253 @@ class ApiClient
             );
         }
 
-        // Record rate limit state from response
-        $rateLimitPolicy = $response->rateLimitPolicy();
-        if ($rateLimitPolicy !== null) {
-            $responseHeaders = $response->raw()->getHeaders();
-            $this->rateLimiter->recordResponse($responseHeaders);
-            $this->rateLimiter->rememberPolicyForPath($this->normalizePathForPolicy($path), $rateLimitPolicy->name);
-
-            // Store rate limit headers for external consumers
-            $this->lastRateLimitHeaders = $this->extractRateLimitHeaders($responseHeaders);
-        } else {
-            $this->lastRateLimitHeaders = null;
-        }
+        $this->recordRateLimit($response, $path);
 
         // Handle error responses (429s already retried by middleware)
         if (! $response->isSuccessful()) {
-            $this->handleErrorResponse($response, $policy);
+            throw $this->errorFor($response, $policy);
         }
 
         return $response;
+    }
+
+    /**
+     * Record a response's rate limit state, and which policy its path is under.
+     */
+    private function recordRateLimit(ApiResponse $response, string $path): void
+    {
+        $rateLimitPolicy = $response->rateLimitPolicy();
+
+        if ($rateLimitPolicy === null) {
+            $this->lastRateLimitHeaders = null;
+
+            return;
+        }
+
+        $responseHeaders = $response->raw()->getHeaders();
+        $this->rateLimiter->recordResponse($responseHeaders);
+        $this->rateLimiter->rememberPolicyForPath($this->normalizePathForPolicy($path), $rateLimitPolicy->name);
+
+        // Store rate limit headers for external consumers
+        $this->lastRateLimitHeaders = $this->extractRateLimitHeaders($responseHeaders);
+    }
+
+    /**
+     * How many of the pending paths the next round may send.
+     *
+     * Waits through the configured strategy first when no hit is left, so a
+     * RateLimitException from the exception strategy surfaces here.
+     *
+     * @param  array<array-key, string>  $pending
+     *
+     * @throws RateLimitException
+     */
+    private function roundSize(array $pending): int
+    {
+        $policies = [];
+
+        foreach ($pending as $path) {
+            $policy = $this->guessPolicyForPath($path);
+
+            // Limits unknown until a response names the policy: one request alone.
+            if ($policy === '') {
+                return 1;
+            }
+
+            $policies[$policy] = true;
+        }
+
+        $policies = array_keys($policies);
+        $capacity = $this->capacityFor($policies);
+
+        if ($capacity === 0) {
+            $wait = $this->longestWait($policies);
+
+            if ($wait !== null) {
+                $this->handleRateLimit($wait);
+            }
+
+            // Re-read after the wait. A strategy that returned without waiting
+            // (log, or a callback that did not sleep) gets what get() does
+            // after the same strategy: one request.
+            $capacity = max(1, $this->capacityFor($policies));
+        }
+
+        return min($capacity, count($pending));
+    }
+
+    /**
+     * Hits left across these policies; a policy with no figure yet allows one.
+     *
+     * @param  list<string>  $policies
+     */
+    private function capacityFor(array $policies): int
+    {
+        $capacity = PHP_INT_MAX;
+
+        foreach ($policies as $policy) {
+            $capacity = min($capacity, $this->rateLimiter->capacity($policy) ?? 1);
+        }
+
+        return $capacity;
+    }
+
+    /**
+     * The longest pre-flight wait across these policies, or null when none must wait.
+     *
+     * @param  list<string>  $policies
+     */
+    private function longestWait(array $policies): ?RateLimitResult
+    {
+        $longest = null;
+
+        foreach ($policies as $policy) {
+            $check = $this->rateLimiter->check($policy);
+
+            if (! $check->canProceed && ($longest === null || $check->waitSeconds > $longest->waitSeconds)) {
+                $longest = $check;
+            }
+        }
+
+        return $longest;
+    }
+
+    /**
+     * Send one round concurrently, settling each key as its response lands.
+     *
+     * The pool's concurrency is the round's size, so every request is handed
+     * to curl_multi before the first response is read: nothing in the round
+     * can be held back once one response comes back a 429.
+     *
+     * A key that drew a 429 is not settled, so it stays queued for the next
+     * round, unless the 429 gave nothing to wait on, which ends the batch
+     * (`abort`).
+     *
+     * @param  array<array-key, string>  $round
+     * @param  Closure(array-key, ApiResponse|VaalApiException): void  $settle
+     * @return array{rateLimited: VaalApiException|null, abort: VaalApiException|null}
+     */
+    private function sendRound(array $round, Closure $settle): array
+    {
+        $headers = $this->buildHeaders();
+        $rateLimited = null;
+        $abort = null;
+
+        $requests = function () use ($round, $headers): \Generator {
+            foreach ($round as $key => $path) {
+                yield $key => fn () => $this->httpClient->requestAsync('GET', ltrim($path, '/'), [
+                    'headers' => $headers,
+                    self::NO_RETRY_OPTION => true,
+                ]);
+            }
+        };
+
+        $pool = new Pool($this->httpClient, $requests(), [
+            'concurrency' => max(1, count($round)),
+            'fulfilled' => function (ResponseInterface $raw, int|string $key) use ($round, $settle, &$rateLimited, &$abort): void {
+                $response = new ApiResponse($raw);
+                $path = $round[$key];
+                $this->recordRateLimit($response, $path);
+
+                $error = $response->isSuccessful()
+                    ? null
+                    : $this->errorFor($response, $response->rateLimitPolicy()?->name ?? $this->guessPolicyForPath($path));
+
+                if ($response->status() !== 429) {
+                    $settle($key, $error ?? $response);
+
+                    return;
+                }
+
+                if ($this->restrictAfter429($response)) {
+                    $rateLimited ??= $error;
+                } else {
+                    $settle($key, $error);
+                    $abort ??= $error;
+                }
+            },
+            'rejected' => function (mixed $reason, int|string $key) use ($settle): void {
+                $settle($key, match (true) {
+                    $reason instanceof TransferException => new ConnectionException('GGG API did not respond: '.$reason->getMessage(), previous: $reason),
+                    $reason instanceof VaalApiException => $reason,
+                    $reason instanceof \Throwable => new VaalApiException($reason->getMessage(), 0, $reason),
+                    default => new VaalApiException('GGG API request failed'),
+                });
+            },
+        ]);
+
+        $pool->promise()->wait();
+
+        return ['rateLimited' => $rateLimited, 'abort' => $abort];
+    }
+
+    /**
+     * Make sure a recorded 429 leaves a wait behind before anything else goes out.
+     *
+     * GGG's 429 carries Retry-After and an active penalty, which
+     * recordResponse() has already turned into a hard wait. A 429 without
+     * either gets the strictest rule its headers name: the policy's longest
+     * penalty. A 429 with no rate limit headers leaves nothing to wait on.
+     *
+     * @return bool False when there is no wait to honour and the batch must stop
+     */
+    private function restrictAfter429(ApiResponse $response): bool
+    {
+        $policy = $response->rateLimitPolicy();
+
+        if ($policy === null) {
+            return false;
+        }
+
+        $longestPenalty = 0;
+
+        foreach ($policy->rules as $windows) {
+            foreach ($windows as $window) {
+                if ($window->activePenalty > 0) {
+                    return true;
+                }
+
+                $longestPenalty = max($longestPenalty, $window->penalty);
+            }
+        }
+
+        if (($policy->retryAfter ?? 0) > 0) {
+            return true;
+        }
+
+        if ($longestPenalty === 0) {
+            return false;
+        }
+
+        $this->rateLimiter->restrict(
+            $policy->name,
+            $longestPenalty,
+            "429 without Retry-After: waiting the policy's longest penalty ({$longestPenalty}s)",
+        );
+
+        return true;
+    }
+
+    /**
+     * Results in the order the caller keyed the batch.
+     *
+     * @template T
+     *
+     * @param  array<array-key, T>  $results
+     * @param  array<array-key, string>  $paths
+     * @return array<array-key, T>
+     */
+    private static function inKeyOrder(array $results, array $paths): array
+    {
+        $ordered = [];
+
+        foreach (array_keys($paths) as $key) {
+            if (array_key_exists($key, $results)) {
+                $ordered[$key] = $results[$key];
+            }
+        }
+
+        return $ordered;
     }
 
     /**
@@ -569,9 +893,27 @@ class ApiClient
      * Build Guzzle retry middleware for 429/503 responses.
      *
      * Sleeps for the duration specified by Retry-After, then retries.
-     * Falls back to exponential backoff if no Retry-After header.
+     * Falls back to exponential backoff if no Retry-After header (Guzzle
+     * counts retries from 1, so 2s, 4s, 8s).
+     *
+     * A request sent with the NO_RETRY_OPTION option skips it: a getMany()
+     * round handles its own 429s, and a retry inside the pool would resend
+     * while the rest of the round is still in flight.
      */
     private function buildRetryMiddleware(): callable
+    {
+        $retry = $this->buildRetryDecider();
+
+        return static function (callable $handler) use ($retry): callable {
+            $retrying = $retry($handler);
+
+            return static fn (RequestInterface $request, array $options) => ($options[self::NO_RETRY_OPTION] ?? false)
+                ? $handler($request, $options)
+                : $retrying($request, $options);
+        };
+    }
+
+    private function buildRetryDecider(): callable
     {
         $maxRetries = $this->config['rate_limit']['max_retries'] ?? self::MAX_RETRIES;
 
@@ -598,7 +940,7 @@ class ApiClient
                     return (int) $response->getHeaderLine('Retry-After') * 1000;
                 }
 
-                // Exponential backoff: 1s, 2s, 4s...
+                // Exponential backoff: 2s, 4s, 8s (Guzzle passes retries from 1)
                 return 1000 * (2 ** $retries);
             },
         );
@@ -662,17 +1004,16 @@ class ApiClient
     }
 
     /**
-     * Handle non-2xx responses with appropriate exceptions.
+     * The exception a non-2xx response stands for.
      *
      * 429 responses that reach here have already exhausted retry middleware
-     * (or middleware is disabled). They become RateLimitExceptions.
+     * (or middleware is disabled, or the request was part of a getMany()
+     * round). They become RateLimitExceptions.
      *
      * @param  ApiResponse  $response  The API response
      * @param  string  $policy  The rate limit policy name
-     *
-     * @throws VaalApiException
      */
-    private function handleErrorResponse(ApiResponse $response, string $policy): void
+    private function errorFor(ApiResponse $response, string $policy): VaalApiException
     {
         $status = $response->status();
         $data = $response->data();
@@ -681,19 +1022,21 @@ class ApiClient
             ?? $data['message']
             ?? "HTTP {$status}";
 
-        $rlHeaders = $this->lastRateLimitHeaders;
+        $rlHeaders = $response->rateLimitPolicy() === null
+            ? null
+            : $this->extractRateLimitHeaders($response->raw()->getHeaders());
 
-        match (true) {
-            $status === 429 => throw new RateLimitException(
+        return match (true) {
+            $status === 429 => new RateLimitException(
                 RateLimitResult::wait($policy, (int) ($response->header('Retry-After') ?? 60), $message),
                 responseBody: $data,
                 rateLimitHeaders: $rlHeaders,
             ),
-            $status === 401, $status === 403 => throw new AuthenticationException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status === 404 => throw new ResourceNotFoundException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status >= 400 && $status < 500 => throw new InvalidRequestException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            $status >= 500 => throw new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
-            default => throw new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status === 401, $status === 403 => new AuthenticationException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status === 404 => new ResourceNotFoundException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 400 && $status < 500 => new InvalidRequestException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            $status >= 500 => new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
+            default => new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
         };
     }
 

@@ -3,10 +3,14 @@
 namespace Braseidon\VaalApi\Resources;
 
 use Braseidon\VaalApi\Client\ApiClient;
+use Braseidon\VaalApi\Client\ApiResponse;
+use Braseidon\VaalApi\Client\BatchResult;
 use Braseidon\VaalApi\Dto\StashTab;
 use Braseidon\VaalApi\Dto\StashTabSummary;
 use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\VaalApiException;
+use Closure;
 
 /**
  * Stash tab endpoints (PoE1 only).
@@ -60,6 +64,59 @@ class StashResource
     {
         $this->client->requireScope(Scope::Stashes, 'StashResource');
 
+        return self::tab($this->client->get($this->tabPath($stashId, $substashId)));
+    }
+
+    /**
+     * Get several stash tabs (or substash tabs), as many at once as GGG's
+     * stash-request-limit window allows. See ApiClient::getMany() for the
+     * pacing, waits and 429 handling.
+     *
+     * Each entry is a stash id, or a [stash id, substash id] pair for a
+     * child of a folder, map or unique tab. Results keep the caller's keys and
+     * order. A tab that fails (404, 429 given up on, connection failure, ...)
+     * lands in `failures` under its key with the exception get() would have
+     * thrown; the others still come back.
+     *
+     * @param  array<array-key, string|array{0: string, 1?: string|null}>  $stashes
+     * @param  (Closure(array-key, StashTab|VaalApiException): void)|null  $onResult  Called as each tab settles, in landing order
+     * @return BatchResult<StashTab>
+     *
+     * @throws \InvalidArgumentException When an entry is neither a stash id nor a [stash id, substash id] pair
+     */
+    public function getMany(array $stashes, ?Closure $onResult = null): BatchResult
+    {
+        $this->client->requireScope(Scope::Stashes, 'StashResource');
+
+        $paths = [];
+
+        foreach ($stashes as $key => $stash) {
+            [$stashId, $substashId] = match (true) {
+                is_string($stash) => [$stash, null],
+                is_array($stash) && is_string($stash[0] ?? null) => [$stash[0], $stash[1] ?? null],
+                default => throw new \InvalidArgumentException("Stash entry '{$key}' is neither a stash id nor a [stash id, substash id] pair"),
+            };
+
+            $paths[$key] = $this->tabPath($stashId, $substashId);
+        }
+
+        $batch = $this->client->getMany($paths, $onResult === null ? null : function (int|string $key, ApiResponse|VaalApiException $result) use ($onResult): void {
+            $onResult($key, $result instanceof ApiResponse ? self::tab($result) : $result);
+        });
+
+        return new BatchResult(
+            array_map(self::tab(...), $batch->results),
+            $batch->failures,
+        );
+    }
+
+    private static function tab(ApiResponse $response): StashTab
+    {
+        return StashTab::fromArray($response->data()['stash'] ?? []);
+    }
+
+    private function tabPath(string $stashId, ?string $substashId): string
+    {
         $path = $this->buildPath('/stash')
             .'/'.rawurlencode($this->league)
             .'/'.rawurlencode($stashId);
@@ -68,9 +125,7 @@ class StashResource
             $path .= '/'.rawurlencode($substashId);
         }
 
-        $response = $this->client->get($path);
-
-        return StashTab::fromArray($response->data()['stash'] ?? []);
+        return $path;
     }
 
     /**

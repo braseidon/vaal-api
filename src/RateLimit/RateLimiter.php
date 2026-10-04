@@ -195,6 +195,24 @@ class RateLimiter
     }
 
     /**
+     * Hold every request for this policy for the given seconds from now.
+     *
+     * For a restriction the headers did not state (a 429 without Retry-After
+     * or a penalty). Like a stated one, it only ever moves the end later.
+     */
+    public function restrict(string $policy, int $seconds, string $reason): void
+    {
+        $now = $this->now();
+        $until = $now + $seconds;
+        $block = $this->store->get(self::BLOCK_KEY.$policy);
+
+        if ($seconds > 0 && $until > (float) ($block['until'] ?? 0)) {
+            $this->store->put(self::BLOCK_KEY.$policy, ['until' => $until, 'reason' => $reason], $seconds);
+            $this->recorded[$policy] = true;
+        }
+    }
+
+    /**
      * Remember which policy GGG applies to a normalized path, so the next
      * request to that path, from any limiter on the store, is checked first.
      */
