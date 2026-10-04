@@ -54,9 +54,10 @@ class SharedRateLimitStateTest extends TestCase
 
         // Retry-After has run out; the fixture's 5-per-300s window (5/5) still holds
         $this->now += 16;
-        $this->assertSame(254, $this->limiter($store)->check('character-list-request-limit')->waitSeconds);
+        // (300 s after the response plus the 1 s edge pad).
+        $this->assertSame(255, $this->limiter($store)->check('character-list-request-limit')->waitSeconds);
 
-        $this->now += 254;
+        $this->now += 255;
         $this->assertTrue($this->limiter($store)->check('character-list-request-limit')->canProceed);
     }
 
@@ -67,7 +68,8 @@ class SharedRateLimitStateTest extends TestCase
 
         $this->now += 4;
 
-        $this->assertSame(6, $this->limiter($store)->check('character-list-request-limit')->waitSeconds);
+        // 10 s window plus the 1 s edge pad, 4 s of it gone.
+        $this->assertSame(7, $this->limiter($store)->check('character-list-request-limit')->waitSeconds);
     }
 
     public function test_the_path_to_policy_map_is_shared(): void

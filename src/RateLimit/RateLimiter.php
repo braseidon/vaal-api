@@ -36,7 +36,8 @@ use Closure;
  * When GGG's header counts more hits than the limiter recorded (another
  * process, a write lost between processes), the extra hits are assumed to
  * have happened the moment that response landed: the latest they could have,
- * so they age out no earlier than GGG lets them.
+ * so they age out no earlier than GGG lets them. Every window edge worked out
+ * from hit times carries a further second (EDGE_PAD_SECONDS).
  *
  * A restricted state (Retry-After, or a non-zero third field in a state
  * header) is kept apart as a "blocked until" time that only ever moves later,
@@ -52,6 +53,19 @@ class RateLimiter
     private const HITS_KEY = 'hits:';
 
     private const BLOCK_KEY = 'block:';
+
+    /**
+     * Seconds added past every window edge worked out from hit times.
+     *
+     * GGG documents neither whether a window rolls or resets on a fixed
+     * boundary nor the resolution of the times it counts hits by: a window
+     * kept in whole seconds holds a hit up to a second longer than its landing
+     * time says, and a request sent at the computed edge would draw a 429.
+     * Production runs a safety margin of 0.0, so nothing else absorbs that
+     * second. Waits GGG's headers state (Retry-After, an active penalty) are
+     * GGG's own figures and take no pad.
+     */
+    private const EDGE_PAD_SECONDS = 1;
 
     private readonly RateLimitStore $store;
 
@@ -92,7 +106,7 @@ class RateLimiter
         }
 
         $now = $this->now();
-        $longest = self::longestPeriod($policy);
+        $longest = self::longestPeriod($policy) + self::EDGE_PAD_SECONDS;
 
         $this->store->put(self::POLICY_KEY.$policy->name, [
             'headers' => self::rateLimitHeaders($headers),
@@ -341,9 +355,10 @@ class RateLimiter
     /**
      * The times this window's counted hits age out, soonest first.
      *
-     * Our own hits age out a period after they landed. When GGG's count at
-     * the latest response exceeds the hits we recorded inside that window,
-     * the difference ages out a period after that response.
+     * Our own hits age out a period (plus EDGE_PAD_SECONDS) after they landed.
+     * When GGG's count at the latest response exceeds the hits we recorded
+     * inside that window, the difference ages out a period (plus the pad)
+     * after that response.
      *
      * @param  list<float>  $hits  Landing times of every recorded response
      * @return list<float>
@@ -351,22 +366,25 @@ class RateLimiter
     private static function expiries(RateLimitWindow $window, array $hits, float $recordedAt, float $now): array
     {
         $period = (float) $window->period;
+        $held = $period + self::EDGE_PAD_SECONDS;
         $expiries = [];
         $recordedInWindow = 0;
 
         foreach ($hits as $at) {
-            if ($at + $period > $now) {
-                $expiries[] = $at + $period;
+            if ($at + $held > $now) {
+                $expiries[] = $at + $held;
             }
 
+            // Unpadded: a hit counted here lowers the unseen figure below, so
+            // the narrower test is the one that never under-counts.
             if ($at <= $recordedAt && $at > $recordedAt - $period) {
                 $recordedInWindow++;
             }
         }
 
-        if ($recordedAt + $period > $now) {
+        if ($recordedAt + $held > $now) {
             $unseen = max(0, $window->currentHits - $recordedInWindow);
-            array_push($expiries, ...array_fill(0, $unseen, $recordedAt + $period));
+            array_push($expiries, ...array_fill(0, $unseen, $recordedAt + $held));
         }
 
         sort($expiries);
@@ -486,7 +504,7 @@ class RateLimiter
 
         foreach ($policy->rules as $windows) {
             foreach ($windows as $window) {
-                $longest = max($longest, $window->period, $window->activePenalty);
+                $longest = max($longest, $window->period + self::EDGE_PAD_SECONDS, $window->activePenalty);
             }
         }
 

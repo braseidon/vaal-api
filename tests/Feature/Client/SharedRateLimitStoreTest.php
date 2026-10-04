@@ -89,7 +89,7 @@ class SharedRateLimitStoreTest extends TestCase
             $second->get('/character');
             $this->fail('Expected the pre-flight check to refuse the request');
         } catch (RateLimitException $e) {
-            $this->assertSame(10, $e->getRetryAfter());
+            $this->assertSame(11, $e->getRetryAfter(), 'The 10 s window plus the limiter\'s 1 s edge pad');
         }
 
         $this->assertCount(0, $secondHistory, 'The second client must not send a request GGG will refuse');

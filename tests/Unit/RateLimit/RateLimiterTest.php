@@ -47,7 +47,7 @@ class RateLimiterTest extends TestCase
         $result = $limiter->check('character-list-request-limit');
 
         $this->assertFalse($result->canProceed);
-        $this->assertSame(10, $result->waitSeconds); // Window 1 period
+        $this->assertSame(11, $result->waitSeconds); // Window 1 period plus the 1 s edge pad
     }
 
     public function test_check_returns_max_wait_across_windows(): void
@@ -58,7 +58,7 @@ class RateLimiterTest extends TestCase
         $result = $limiter->check('character-list-request-limit');
 
         $this->assertFalse($result->canProceed);
-        $this->assertSame(300, $result->waitSeconds); // Max of both windows
+        $this->assertSame(301, $result->waitSeconds); // Max of both windows, plus the 1 s edge pad
     }
 
     public function test_check_blocks_when_penalized(): void
@@ -130,7 +130,7 @@ class RateLimiterTest extends TestCase
         $limiter = new RateLimiter(0.0);
 
         $this->assertSame(0, $limiter->getWaitSeconds($this->fixtures['character-list']));
-        $this->assertSame(10, $limiter->getWaitSeconds($this->fixtures['at-limit-window1']));
+        $this->assertSame(11, $limiter->getWaitSeconds($this->fixtures['at-limit-window1']));
         $this->assertSame(45, $limiter->getWaitSeconds($this->fixtures['penalized']));
     }
 

@@ -156,7 +156,7 @@ class ConcurrentStashReadsTest extends TestCase
 
         $batch = $client->stashes('Mirage')->getMany(self::ids(20));
 
-        $this->assertSame([15, 'wait:10', 5], $this->rounds());
+        $this->assertSame([15, 'wait:11', 5], $this->rounds());
         $this->assertSame(0, $ggg->refused, 'GGG never refused a request');
         $this->assertTrue($batch->succeeded());
         $this->assertSame(array_keys(self::ids(20)), array_keys($batch->results), 'Results keep the caller\'s keys and order');
@@ -178,7 +178,7 @@ class ConcurrentStashReadsTest extends TestCase
 
         $batch = $client->stashes('Mirage')->getMany(self::ids(20));
 
-        $this->assertSame([1, 14, 'wait:10', 5], $this->rounds());
+        $this->assertSame([1, 14, 'wait:11', 5], $this->rounds());
         $this->assertSame(0, $ggg->refused);
         $this->assertCount(20, $batch->results);
     }
@@ -192,10 +192,11 @@ class ConcurrentStashReadsTest extends TestCase
 
         $batch = $client->stashes('Mirage')->getMany(self::ids(32));
 
-        // 1 warm-up hit + 29 = 30 in the 300 s window. The warm-up landed 20 s
-        // before the batch, so its slot frees 280 s after round one; the
-        // first round's fifteen free 300 s after it, 20 s later.
-        $this->assertSame([15, 'wait:10', 14, 'wait:270', 1, 'wait:20', 2], $this->rounds());
+        // 1 warm-up hit + 29 = 30 in the 300 s window. Every window edge
+        // carries the limiter's 1 s pad. The warm-up landed 20 s before the
+        // batch, so its slot frees 281 s after round one; the first round's
+        // fifteen free 301 s after it, 20 s later.
+        $this->assertSame([15, 'wait:11', 14, 'wait:270', 1, 'wait:20', 2], $this->rounds());
         $this->assertSame(0, $ggg->refused);
         $this->assertCount(32, $batch->results);
     }
@@ -289,7 +290,7 @@ class ConcurrentStashReadsTest extends TestCase
         $this->assertCount(15, $batch->results);
         $this->assertSame(['tab-16', 'tab-17', 'tab-18', 'tab-19', 'tab-20'], array_keys($batch->failures));
         $this->assertContainsOnlyInstancesOf(RateLimitException::class, $batch->failures);
-        $this->assertSame(10, $batch->failures['tab-16']->getRetryAfter());
+        $this->assertSame(11, $batch->failures['tab-16']->getRetryAfter());
     }
 
     public function test_one_missing_tab_fails_alone(): void

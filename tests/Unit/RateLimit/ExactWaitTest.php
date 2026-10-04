@@ -62,12 +62,43 @@ class ExactWaitTest extends TestCase
         $result = $limiter->check(self::POLICY);
 
         $this->assertFalse($result->canProceed);
-        $this->assertSame(6, $result->waitSeconds, 'The first hit landed 4 s before the last, so its slot frees 6 s from now, not 10');
+        $this->assertSame(7, $result->waitSeconds, 'The first hit landed 4 s before the last, so its slot frees 6 s from now (plus the 1 s edge pad), not 10');
         $this->assertSame(0, $limiter->capacity(self::POLICY));
 
-        $this->now = $start + 10.0;
+        $this->now = $start + 11.0;
         $this->assertTrue($limiter->check(self::POLICY)->canProceed);
         $this->assertSame(1, $limiter->capacity(self::POLICY));
+    }
+
+    public function test_a_full_window_stays_full_one_second_past_its_edge(): void
+    {
+        $limiter = $this->limiter();
+        $limiter->recordResponse(self::stashRead('15:10:0,15:300:0'));
+
+        // GGG's window resolution is undocumented: the computed edge is not trusted to the second.
+        $this->now += 10.0;
+        $this->assertFalse($limiter->check(self::POLICY)->canProceed);
+        $this->assertSame(1, $limiter->check(self::POLICY)->waitSeconds);
+        $this->assertSame(0, $limiter->capacity(self::POLICY));
+
+        $this->now += 1.0;
+        $this->assertTrue($limiter->check(self::POLICY)->canProceed);
+        $this->assertSame(15, $limiter->capacity(self::POLICY));
+    }
+
+    public function test_a_hit_stays_recorded_until_its_padded_edge_passes(): void
+    {
+        $limiter = $this->limiter();
+        $start = $this->now;
+        $this->recordSpread($limiter, 30, 0.0);
+
+        // A response landing half a second past the long window's bare edge
+        // must not prune the thirty hits: they still hold their padded second.
+        $this->now = $start + 300.5;
+        $limiter->recordResponse(self::stashRead('1:10:0,1:300:0'));
+
+        $this->assertSame(1, $limiter->check(self::POLICY)->waitSeconds);
+        $this->assertSame(0, $limiter->capacity(self::POLICY));
     }
 
     public function test_the_long_window_frees_when_the_first_of_thirty_hits_ages_out(): void
@@ -79,10 +110,10 @@ class ExactWaitTest extends TestCase
         $this->now = $start + 14.0;
         $this->recordSpread($limiter, 15, 2.0, alreadyInLongWindow: 15);
 
-        // The last response landed at +16 s; the first, at +0 s, leaves the 300 s window at +300 s.
+        // The last response landed at +16 s; the first, at +0 s, leaves the 300 s window at +300 s (+301 s with the edge pad).
         $result = $limiter->check(self::POLICY);
 
-        $this->assertSame(284, $result->waitSeconds, 'Not 300: the wait counts from the oldest hit, not the latest response');
+        $this->assertSame(285, $result->waitSeconds, 'Not 300: the wait counts from the oldest hit, not the latest response');
     }
 
     public function test_the_header_count_wins_when_it_is_higher_than_the_hits_recorded(): void
@@ -97,7 +128,7 @@ class ExactWaitTest extends TestCase
         $result = $limiter->check(self::POLICY);
 
         $this->assertFalse($result->canProceed, 'Four recorded hits, but GGG counts fifteen');
-        $this->assertSame(7, $result->waitSeconds, 'The oldest recorded hit (at 0 s) leaves first, at 10 s');
+        $this->assertSame(8, $result->waitSeconds, 'The oldest recorded hit (at 0 s) leaves first, at 10 s plus the 1 s edge pad');
         $this->assertSame(0, $limiter->capacity(self::POLICY));
     }
 
@@ -117,10 +148,10 @@ class ExactWaitTest extends TestCase
         $limiter = $this->limiter();
         $limiter->recordResponse(self::stashRead('15:10:0,15:300:0'));
 
-        $this->assertSame(10, $limiter->check(self::POLICY)->waitSeconds);
+        $this->assertSame(11, $limiter->check(self::POLICY)->waitSeconds);
 
         $this->now += 4.0;
-        $this->assertSame(6, $limiter->check(self::POLICY)->waitSeconds);
+        $this->assertSame(7, $limiter->check(self::POLICY)->waitSeconds);
     }
 
     public function test_a_restricted_state_forces_its_wait_even_with_hits_to_spare(): void
@@ -163,9 +194,9 @@ class ExactWaitTest extends TestCase
         $start = $this->now;
         $this->recordSpread($this->limiter($store), 15, 4.0);
 
-        $this->assertSame(6, $this->limiter($store)->check(self::POLICY)->waitSeconds);
+        $this->assertSame(7, $this->limiter($store)->check(self::POLICY)->waitSeconds);
 
-        $this->now = $start + 10.0;
+        $this->now = $start + 11.0;
         $this->assertSame(1, $this->limiter($store)->capacity(self::POLICY));
     }
 
