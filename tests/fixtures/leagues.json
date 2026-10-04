@@ -1,44 +1,78 @@
-[
+{
+  "leagues": [
     {
-        "id": "Standard",
-        "realm": "pc",
-        "url": "https://www.pathofexile.com/league/Standard",
-        "startAt": null,
-        "endAt": null,
-        "description": "The default game mode.",
-        "category": {},
-        "rules": []
+      "id": "Standard",
+      "name": "Standard",
+      "realm": "pc",
+      "url": "https://www.pathofexile.com/ladders/league/Standard",
+      "startAt": "2013-01-23T21:00:00Z",
+      "endAt": null,
+      "description": "The default game mode.",
+      "category": {
+        "id": "Standard"
+      },
+      "registerAt": "2019-09-06T19:00:00Z",
+      "delveEvent": true,
+      "rules": []
     },
     {
-        "id": "Mirage",
-        "realm": "pc",
-        "url": "https://www.pathofexile.com/league/Mirage",
-        "startAt": "2026-03-07T20:00:00Z",
-        "endAt": "2026-06-08T20:00:00Z",
-        "description": "In this league, reflections of defeated enemies haunt the Atlas.",
-        "category": {
-            "id": "Mirage",
-            "current": true
-        },
-        "rules": []
+      "id": "Hardcore",
+      "name": "Hardcore",
+      "realm": "pc",
+      "url": "https://www.pathofexile.com/ladders/league/Hardcore",
+      "startAt": "2013-01-23T21:00:00Z",
+      "endAt": null,
+      "description": "A character killed in the Hardcore league is moved to the Standard league.",
+      "category": {
+        "id": "Standard"
+      },
+      "registerAt": "2019-09-06T19:00:00Z",
+      "delveEvent": true,
+      "rules": [
+        {
+          "id": "Hardcore",
+          "name": "Hardcore",
+          "description": "A character killed in Hardcore is moved to its parent league."
+        }
+      ]
     },
     {
-        "id": "Hardcore Mirage",
-        "realm": "pc",
-        "url": "https://www.pathofexile.com/league/Hardcore+Mirage",
-        "startAt": "2026-03-07T20:00:00Z",
-        "endAt": "2026-06-08T20:00:00Z",
-        "description": "A shared league with Hardcore and Mirage rules.",
-        "category": {
-            "id": "Mirage",
-            "current": true
-        },
-        "rules": [
-            {
-                "id": "Hardcore",
-                "name": "Hardcore",
-                "description": "A character killed in Hardcore is moved to Standard."
-            }
-        ]
+      "id": "Allflame",
+      "name": "Allflame",
+      "realm": "pc",
+      "url": "https://www.pathofexile.com/ladders/league/Allflame",
+      "startAt": "2026-07-24T20:00:00Z",
+      "endAt": null,
+      "description": "Plunder sunken treasures and harness the power of the Allflame.\n\nThis is the default Path of Exile league.",
+      "category": {
+        "id": "Allflame",
+        "current": true
+      },
+      "registerAt": "2026-07-24T17:30:00Z",
+      "delveEvent": true,
+      "rules": []
+    },
+    {
+      "id": "Hardcore Allflame",
+      "name": "Hardcore Allflame",
+      "realm": "pc",
+      "url": "https://www.pathofexile.com/ladders/league/Hardcore+Allflame",
+      "startAt": "2026-07-24T20:00:00Z",
+      "endAt": null,
+      "description": "Plunder sunken treasures and harness the power of the Allflame.\n\nA character killed in Hardcore Allflame is moved to Allflame League.",
+      "category": {
+        "id": "Allflame",
+        "current": true
+      },
+      "registerAt": "2026-07-24T17:30:00Z",
+      "delveEvent": true,
+      "rules": [
+        {
+          "id": "Hardcore",
+          "name": "Hardcore",
+          "description": "A character killed in Hardcore is moved to its parent league."
+        }
+      ]
     }
-]
+  ]
+}

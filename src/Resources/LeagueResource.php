@@ -32,11 +32,16 @@ class LeagueResource
     {
         $this->client->requireScope(Scope::ServiceLeagues, 'LeagueResource');
 
-        $response = $this->client->get('/league', $params);
+        $data = $this->client->get('/league', $params)->data();
+
+        // GGG wraps the list: {"leagues": [...]}
+        if (! isset($data['leagues']) || ! is_array($data['leagues'])) {
+            throw new \UnexpectedValueException('GET /league returned no "leagues" list.');
+        }
 
         return array_map(
             fn (array $league) => League::fromArray($league),
-            $response->data()
+            $data['leagues']
         );
     }
 
@@ -44,14 +49,22 @@ class LeagueResource
      * Get a specific league by ID.
      *
      * @param  string  $leagueId  League identifier
+     * @return League|null Null when GGG answers {"league": null} (no such league)
+     *
+     * @throws \UnexpectedValueException When the response has no "league" key
      */
-    public function get(string $leagueId): League
+    public function get(string $leagueId): ?League
     {
         $this->client->requireScope(Scope::ServiceLeagues, 'LeagueResource');
 
-        $response = $this->client->get('/league/'.rawurlencode($leagueId));
+        $path = '/league/'.rawurlencode($leagueId);
+        $data = $this->client->get($path)->data();
 
-        return League::fromArray($response->data());
+        if (! array_key_exists('league', $data) || ! (is_array($data['league']) || $data['league'] === null)) {
+            throw new \UnexpectedValueException('GET '.$path.' returned no "league" key.');
+        }
+
+        return $data['league'] === null ? null : League::fromArray($data['league']);
     }
 
     /**

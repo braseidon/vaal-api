@@ -35,7 +35,7 @@ class ItemFilterResource
 
         return array_map(
             fn (array $filter) => ItemFilter::fromArray($filter),
-            $response->data()
+            self::unwrap($response->data(), 'filters', 'GET /item-filter')
         );
     }
 
@@ -50,7 +50,7 @@ class ItemFilterResource
 
         $response = $this->client->get('/item-filter/'.rawurlencode($id));
 
-        return ItemFilter::fromArray($response->data());
+        return ItemFilter::fromArray(self::unwrap($response->data(), 'filter', 'The item-filter endpoint'));
     }
 
     /**
@@ -66,7 +66,7 @@ class ItemFilterResource
         $query = $validate ? ['validate' => 'true'] : [];
         $response = $this->client->post('/item-filter', $data, $query);
 
-        return ItemFilter::fromArray($response->data());
+        return ItemFilter::fromArray(self::unwrap($response->data(), 'filter', 'The item-filter endpoint'));
     }
 
     /**
@@ -86,6 +86,21 @@ class ItemFilterResource
         $query = $validate ? ['validate' => 'true'] : [];
         $response = $this->client->post('/item-filter/'.rawurlencode($id), $data, $query);
 
-        return ItemFilter::fromArray($response->data());
+        return ItemFilter::fromArray(self::unwrap($response->data(), 'filter', 'The item-filter endpoint'));
+    }
+
+    /**
+     * GGG wraps item filter payloads: {"filters": [...]} on the list,
+     * {"filter": {...}} on get, create and update.
+     *
+     * @throws \UnexpectedValueException When the key is missing or not an array
+     */
+    private static function unwrap(array $data, string $key, string $what): array
+    {
+        if (! isset($data[$key]) || ! is_array($data[$key])) {
+            throw new \UnexpectedValueException($what.' returned no "'.$key.'" key.');
+        }
+
+        return $data[$key];
     }
 }

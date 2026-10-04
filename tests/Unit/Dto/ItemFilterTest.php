@@ -14,7 +14,7 @@ class ItemFilterTest extends TestCase
         $this->fixture = json_decode(
             file_get_contents(__DIR__.'/../../fixtures/item-filter.json'),
             true,
-        );
+        )['filter'];
     }
 
     public function test_from_array(): void

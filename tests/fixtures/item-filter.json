@@ -1,4 +1,5 @@
 {
+  "filter": {
     "id": "abc123def456",
     "filter_name": "MF Strictness Filter",
     "realm": "pc",
@@ -7,4 +8,5 @@
     "type": "Normal",
     "public": true,
     "filter": "Show\n    Rarity Unique\n    SetFontSize 45\n    PlayAlertSound 6 300"
+  }
 }
