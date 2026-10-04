@@ -272,6 +272,8 @@ class ConcurrentStashReadsTest extends TestCase
         $this->assertSame(1, $ggg->refused);
         $this->assertTrue($batch->succeeded());
         $this->assertSame('t03', $batch->results['tab-3']->id());
+        // tab-3 landed after tab-15; results still come back in the caller's order.
+        $this->assertSame(array_keys(self::ids(20)), array_keys($batch->results));
     }
 
     public function test_the_exception_strategy_reports_the_unsent_reads_as_failures(): void
