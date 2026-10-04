@@ -3,12 +3,11 @@
 namespace Braseidon\VaalApi\Dto;
 
 /**
- * Stash tab metadata from the list endpoint.
+ * Stash tab metadata from the list endpoint (GGG type StashTab, without items).
  *
- * Note: The `public` field uses absence-based logic. It's only present
- * as true when the tab is public. Private tabs omit the field entirely.
- *
- * Color is a hex string without the # prefix (e.g. "ff0000").
+ * GGG nests the tab's display flags under `metadata`: `public` and `folder`
+ * are present only as true, `colour` is a hex string without the # prefix
+ * (e.g. "ff0000"). The top-level `folder` and `parent` are tab ids.
  */
 readonly class StashTabSummary
 {
@@ -16,11 +15,12 @@ readonly class StashTabSummary
      * @param  string  $id  Stash tab ID (10-char hex)
      * @param  string  $name  Tab display name
      * @param  string  $type  Tab type (NormalStash, PremiumStash, QuadStash, etc.)
-     * @param  int  $index  Tab position index
-     * @param  string|null  $color  Hex color without # prefix
-     * @param  bool|null  $folder  Whether this is a folder tab
-     * @param  StashTabSummary[]  $children  Child tabs (for folder type)
-     * @param  array|null  $metadata  Extra metadata (includes `public` flag)
+     * @param  int  $index  Tab position index (GGG omits it on child tabs)
+     * @param  string|null  $color  Hex colour from `metadata.colour`, without # prefix
+     * @param  string|null  $folder  Id of the folder this tab sits in
+     * @param  StashTabSummary[]  $children  Child tabs (container tabs read through the detail endpoint)
+     * @param  array|null  $metadata  Raw metadata (`public`, `folder`, `colour`, `items`, ...)
+     * @param  string|null  $parent  Id of the parent tab, on a child tab
      */
     public function __construct(
         public string $id,
@@ -28,15 +28,14 @@ readonly class StashTabSummary
         public string $type,
         public int $index,
         public ?string $color = null,
-        public ?bool $folder = null,
+        public ?string $folder = null,
         public array $children = [],
         public ?array $metadata = null,
+        public ?string $parent = null,
     ) {}
 
     /**
      * Create from a decoded API response array.
-     *
-     * Handles GGG's abbreviated field names (n, i, colour).
      *
      * @param  array  $data  Single stash tab entry
      */
@@ -48,15 +47,21 @@ readonly class StashTabSummary
             $children[] = self::fromArray($child);
         }
 
+        $metadata = $data['metadata'] ?? null;
+        $colour = $metadata['colour'] ?? null;
+        $folder = $data['folder'] ?? null;
+        $parent = $data['parent'] ?? null;
+
         return new self(
             id: $data['id'] ?? '',
-            name: $data['n'] ?? $data['name'] ?? '',
+            name: $data['name'] ?? '',
             type: $data['type'] ?? 'Unknown',
-            index: $data['i'] ?? $data['index'] ?? 0,
-            color: $data['colour'] ?? $data['color'] ?? null,
-            folder: $data['folder'] ?? null,
+            index: $data['index'] ?? 0,
+            color: is_string($colour) ? $colour : null,
+            folder: is_string($folder) ? $folder : null,
             children: $children,
-            metadata: $data['metadata'] ?? null,
+            metadata: $metadata,
+            parent: is_string($parent) ? $parent : null,
         );
     }
 
@@ -66,6 +71,14 @@ readonly class StashTabSummary
     public function isPublic(): bool
     {
         return ($this->metadata['public'] ?? false) === true;
+    }
+
+    /**
+     * Whether this tab is itself a folder (`metadata.folder`).
+     */
+    public function isFolder(): bool
+    {
+        return ($this->metadata['folder'] ?? false) === true;
     }
 
     /**
@@ -80,6 +93,7 @@ readonly class StashTabSummary
             'index' => $this->index,
             'color' => $this->color,
             'folder' => $this->folder,
+            'parent' => $this->parent,
             'children' => array_map(fn (self $c) => $c->toArray(), $this->children),
             'metadata' => $this->metadata,
         ];

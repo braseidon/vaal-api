@@ -1,0 +1,31 @@
+{
+  "stash": {
+    "id": "87ae83d269",
+    "name": "· Breach",
+    "type": "BreachStash",
+    "index": 17,
+    "metadata": {
+      "colour": "2c0059"
+    },
+    "children": [
+      {
+        "id": "ee142785b0",
+        "parent": "87ae83d269",
+        "name": "3",
+        "type": "BreachStash",
+        "metadata": {
+          "items": 1
+        }
+      },
+      {
+        "id": "c21f8e6354",
+        "parent": "87ae83d269",
+        "name": "1",
+        "type": "BreachStash",
+        "metadata": {
+          "items": 6
+        }
+      }
+    ]
+  }
+}
