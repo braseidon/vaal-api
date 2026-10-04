@@ -78,7 +78,7 @@ class StashResource
      * lands in `failures` under its key with the exception get() would have
      * thrown; the others still come back.
      *
-     * @param  array<array-key, string|array{0: string, 1?: string|null}>  $stashes
+     * @param  array<array-key, mixed>  $stashes  Each a stash id string or an array{0: string, 1?: string|null} pair; the shape is checked at runtime
      * @param  (Closure(array-key, StashTab|VaalApiException): void)|null  $onResult  Called as each tab settles, in landing order
      * @return BatchResult<StashTab>
      *
