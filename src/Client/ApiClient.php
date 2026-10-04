@@ -722,11 +722,15 @@ class ApiClient
     {
         $path = '/'.ltrim($path, '/');
 
+        // The realm segment is optional, so it is matched by name: a generic
+        // segment would read "/character/{name}" as the list path with a realm.
+        $realm = '(/(?:'.implode('|', array_map(fn (Realm $r) => $r->value, Realm::cases())).'))?';
+
         $patterns = [
-            '#^/character(/\w+)?$#' => '/character',
-            '#^/character(/\w+)?/.+$#' => '/character/{name}',
-            '#^/stash(/\w+)?/[^/]+$#' => '/stash/{league}',
-            '#^/stash(/\w+)?/[^/]+/.+$#' => '/stash/{league}/{id}',
+            "#^/character{$realm}$#" => '/character',
+            "#^/character{$realm}/.+$#" => '/character/{name}',
+            "#^/stash{$realm}/[^/]+$#" => '/stash/{league}',
+            "#^/stash{$realm}/[^/]+/.+$#" => '/stash/{league}/{id}',
             '#^/account/leagues#' => '/account/leagues',
             '#^/league-account#' => '/league-account',
             '#^/league/[^/]+/ladder$#' => '/league/{id}/ladder',
