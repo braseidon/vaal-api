@@ -8,6 +8,7 @@ use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
 use Braseidon\VaalApi\Tests\Support\MocksInnermostHandler;
 use GuzzleHttp\Psr7\Response;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -83,6 +84,32 @@ class StashResourceTest extends TestCase
                 responses: 2,
             ),
         );
+    }
+
+    /**
+     * @return array<string, array{mixed}>
+     */
+    public static function badEntries(): array
+    {
+        return [
+            'an int' => [42],
+            'a pair without a string id' => [[123, 'abc']],
+            'an empty array' => [[]],
+            'null' => [null],
+        ];
+    }
+
+    #[DataProvider('badEntries')]
+    public function test_get_many_refuses_an_entry_that_is_neither_an_id_nor_a_pair(mixed $entry): void
+    {
+        try {
+            $this->pathsSent(function (ApiClient $c) use ($entry): void {
+                $c->stashes('Mirage')->getMany(['bad' => $entry]);
+            });
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertSame("Stash entry 'bad' is neither a stash id nor a [stash id, substash id] pair", $e->getMessage());
+        }
     }
 
     public function test_the_realm_segment_goes_before_the_league(): void
