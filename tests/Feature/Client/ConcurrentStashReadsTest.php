@@ -37,10 +37,16 @@ class ConcurrentStashReadsTest extends TestCase
     /** @var list<string> "send:{id}", "land:{key}" and "wait:{seconds}", in order */
     private array $events = [];
 
+    /** False: the callback logs the wait but lets no time pass, like a callback that does not sleep. */
+    private bool $callbackSleeps = true;
+
+    /** Runs inside the callback after the clock moves: what another process does during the wait. */
+    private ?\Closure $duringWait = null;
+
     /**
      * @param  array  $history  Collects every request that reached the fake
      */
-    private function client(FakeGgg $ggg, array &$history, string $strategy = 'callback', ?InMemoryRateLimitStore $store = null): ApiClient
+    private function client(FakeGgg $ggg, array &$history, string $strategy = 'callback', ?InMemoryRateLimitStore $store = null, int $maxRetries = 3): ApiClient
     {
         $client = new ApiClient([
             'client_id' => 'test-client',
@@ -48,10 +54,18 @@ class ConcurrentStashReadsTest extends TestCase
                 'strategy' => $strategy,
                 'callback' => function (RateLimitResult $result): void {
                     $this->events[] = 'wait:'.$result->waitSeconds;
-                    $this->now += $result->waitSeconds;
+
+                    if ($this->callbackSleeps) {
+                        $this->now += $result->waitSeconds;
+                    }
+
+                    if ($this->duringWait !== null) {
+                        ($this->duringWait)();
+                    }
                 },
                 'safety_margin' => 0.0,
                 'auto_retry' => true,
+                'max_retries' => $maxRetries,
                 'store' => $store ?? new InMemoryRateLimitStore,
                 'clock' => fn (): float => $this->now,
             ],
@@ -275,6 +289,55 @@ class ConcurrentStashReadsTest extends TestCase
         $this->assertSame('t03', $batch->results['tab-3']->id());
         // tab-3 landed after tab-15; results still come back in the caller's order.
         $this->assertSame(array_keys(self::ids(20)), array_keys($batch->results));
+    }
+
+    public function test_a_round_waits_again_when_another_process_restricts_the_policy_during_its_wait(): void
+    {
+        $history = [];
+        $store = new InMemoryRateLimitStore;
+        $ggg = $this->ggg();
+        $client = $this->client($ggg, $history, store: $store);
+        $this->warmUp($client);
+
+        // During the first wait, another process acting for the account is held for 30 s.
+        $this->duringWait = function () use ($store): void {
+            $this->duringWait = null;
+            (new RateLimiter(0.0, $store, fn (): float => $this->now))->restrict(self::POLICY, 30, 'another process');
+        };
+
+        $batch = $client->stashes('Mirage')->getMany(self::ids(20));
+
+        $this->assertSame([15, 'wait:11', 'wait:30', 5], $this->rounds(), 'Nothing goes out while the restriction the wait ended under holds');
+        $this->assertTrue($batch->succeeded());
+    }
+
+    public function test_a_callback_that_does_not_wait_gets_one_request_not_another_wait(): void
+    {
+        $history = [];
+        $ggg = $this->ggg();
+        $client = $this->client($ggg, $history);
+        $this->warmUp($client);
+        $this->callbackSleeps = false;
+
+        $client->stashes('Mirage')->getMany(self::ids(20));
+
+        // As get() after the same strategy: one request, never the callback again in a loop.
+        $this->assertSame([15, 'wait:11', 1], array_slice($this->rounds(), 0, 3));
+    }
+
+    public function test_a_failed_read_reports_the_wait_the_limiter_holds_after_a_429_that_stated_none(): void
+    {
+        $history = [];
+        $ggg = $this->ggg();
+        $client = $this->client($ggg, $history, maxRetries: 0);
+        $this->warmUp($client);
+        $ggg->unexplainedRefusalFor('t03');
+
+        $batch = $client->stashes('Mirage')->getMany(self::ids(20));
+
+        // The limiter holds the policy's longest penalty (300 s); the failure says so, not a flat 60.
+        $this->assertInstanceOf(RateLimitException::class, $batch->failures['tab-3']);
+        $this->assertSame(300, $batch->failures['tab-3']->getRetryAfter());
     }
 
     public function test_the_exception_strategy_reports_the_unsent_reads_as_failures(): void

@@ -64,6 +64,9 @@ class ApiClient
 
     private const MAX_RETRIES = 3;
 
+    /** Seconds a 429 reports when neither Retry-After nor the limiter gives a wait. */
+    private const DEFAULT_429_WAIT = 60;
+
     /** Guzzle request option: skip the 429/503 retry middleware for this request. */
     private const NO_RETRY_OPTION = 'vaal_api_no_retry';
 
@@ -584,7 +587,7 @@ class ApiClient
 
         // Handle error responses (429s already retried by middleware)
         if (! $response->isSuccessful()) {
-            throw $this->errorFor($response, $policy);
+            throw $this->errorFor($response, $this->policyOf($response, $path));
         }
 
         return $response;
@@ -639,20 +642,36 @@ class ApiClient
         $policies = array_keys($policies);
         $capacity = $this->capacityFor($policies);
 
-        if ($capacity === 0) {
-            $wait = $this->longestWait($policies);
+        $waits = 0;
+        $maxWaits = 1 + ($this->config['rate_limit']['max_retries'] ?? self::MAX_RETRIES);
 
-            if ($wait !== null) {
-                $this->handleRateLimit($wait);
+        // Re-read after every wait: during it another process may have taken
+        // the freed slot, or a restriction may have moved later, so a full
+        // wait that still leaves no room waits again. A strategy that returned
+        // without waiting the whole time (log, or a callback that did not
+        // sleep), or a window still full after max_retries more waits, gets
+        // what get() does after the same strategy: one request.
+        while ($capacity === 0 && $waits++ < $maxWaits && ($wait = $this->longestWait($policies)) !== null) {
+            $before = $this->now();
+            $this->handleRateLimit($wait);
+            $capacity = $this->capacityFor($policies);
+
+            if ($this->now() - $before < $wait->waitSeconds) {
+                break;
             }
-
-            // Re-read after the wait. A strategy that returned without waiting
-            // (log, or a callback that did not sleep) gets what get() does
-            // after the same strategy: one request.
-            $capacity = max(1, $this->capacityFor($policies));
         }
 
-        return min($capacity, count($pending));
+        return min(max(1, $capacity), count($pending));
+    }
+
+    /**
+     * The current Unix time in seconds, on the clock the rate limiter reads.
+     */
+    private function now(): float
+    {
+        $clock = $this->config['rate_limit']['clock'] ?? null;
+
+        return $clock instanceof Closure ? (float) $clock() : microtime(true);
     }
 
     /**
@@ -728,17 +747,17 @@ class ApiClient
                 $path = $round[$key];
                 $this->recordRateLimit($response, $path);
 
-                $error = $response->isSuccessful()
-                    ? null
-                    : $this->errorFor($response, $response->rateLimitPolicy()?->name ?? $this->guessPolicyForPath($path));
-
                 if ($response->status() !== 429) {
-                    $settle($key, $error ?? $response);
+                    $settle($key, $response->isSuccessful() ? $response : $this->errorFor($response, $this->policyOf($response, $path)));
 
                     return;
                 }
 
-                if ($this->restrictAfter429($response)) {
+                // Restrict first, so the error carries the wait the store now holds.
+                $restricted = $this->restrictAfter429($response);
+                $error = $this->errorFor($response, $this->policyOf($response, $path));
+
+                if ($restricted) {
                     $rateLimited ??= $error;
                 } else {
                     $settle($key, $error);
@@ -1028,7 +1047,7 @@ class ApiClient
 
         return match (true) {
             $status === 429 => new RateLimitException(
-                RateLimitResult::wait($policy, (int) ($response->header('Retry-After') ?? 60), $message),
+                RateLimitResult::wait($policy, $this->retryAfterFor($response, $policy), $message),
                 responseBody: $data,
                 rateLimitHeaders: $rlHeaders,
             ),
@@ -1038,6 +1057,35 @@ class ApiClient
             $status >= 500 => new ServerException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
             default => new VaalApiException($message, $status, responseBody: $data, rateLimitHeaders: $rlHeaders),
         };
+    }
+
+    /**
+     * The policy a response names, else the one its path was last seen under.
+     */
+    private function policyOf(ApiResponse $response, string $path): string
+    {
+        $policy = $response->rateLimitPolicy();
+
+        return $policy !== null ? $policy->name : $this->guessPolicyForPath($path);
+    }
+
+    /**
+     * Seconds a 429's RateLimitException tells the caller to wait: the longer
+     * of GGG's Retry-After and the wait the limiter now holds for the policy
+     * (a penalty, or the longest penalty restrict() stored for a 429 that
+     * stated no wait), so the figure matches what the next pre-flight check
+     * enforces. DEFAULT_429_WAIT when neither says anything.
+     */
+    private function retryAfterFor(ApiResponse $response, string $policy): int
+    {
+        $stated = $response->header('Retry-After');
+        $held = $policy === '' ? 0 : $this->rateLimiter->check($policy)->waitSeconds;
+
+        if ($stated === null && $held === 0) {
+            return self::DEFAULT_429_WAIT;
+        }
+
+        return max((int) $stated, $held);
     }
 
     /**
@@ -1067,6 +1115,9 @@ class ApiClient
 
         // The realm segment is optional, so it is matched by name: a generic
         // segment would read "/character/{name}" as the list path with a realm.
+        // A realm-less read of a character named exactly like a realm ("pc",
+        // "xbox", "sony", "poe2") still reads as the list path: accepted, as
+        // GGG's lowercase realm names make that collision unlikely.
         $realm = '(/(?:'.implode('|', array_map(fn (Realm $r) => $r->value, Realm::cases())).'))?';
 
         $patterns = [
