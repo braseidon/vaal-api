@@ -41,11 +41,16 @@ class CharacterResource
         $path = $this->buildPath('/character');
         $response = $this->client->get($path);
 
-        $characters = $response->data()['characters'] ?? $response->data();
+        $data = $response->data();
+
+        // GGG wraps the list: {"characters": [...]}
+        if (! isset($data['characters']) || ! is_array($data['characters'])) {
+            throw new \UnexpectedValueException('GET '.$path.' returned no "characters" list.');
+        }
 
         return array_map(
             fn (array $char) => CharacterSummary::fromArray($char),
-            $characters
+            $data['characters']
         );
     }
 
@@ -55,7 +60,12 @@ class CharacterResource
      * Rate limit: character-request-limit (5 req/10s, 30 req/5min)
      * Response size: 200-320KB per character.
      *
+     * GGG wraps the character: {"character": {...}}. The DTO keeps the whole
+     * response (raw() includes the wrapper) and its accessors read inside it.
+     *
      * @param  string  $name  Character name
+     *
+     * @throws \UnexpectedValueException When the response has no "character" object
      */
     public function get(string $name): Character
     {
@@ -64,7 +74,13 @@ class CharacterResource
         $path = $this->buildPath('/character').'/'.rawurlencode($name);
         $response = $this->client->get($path);
 
-        return Character::fromArray($response->data());
+        $data = $response->data();
+
+        if (! isset($data['character']) || ! is_array($data['character'])) {
+            throw new \UnexpectedValueException('GET '.$path.' returned no "character" object.');
+        }
+
+        return Character::fromArray($data);
     }
 
     /**

@@ -9,13 +9,14 @@ namespace Braseidon\VaalApi\Dto;
  * responses are 200-300KB with deeply nested structures that change
  * between leagues, so fully typing every field is impractical.
  *
- * Use raw() for the complete data, or the convenience accessors for
- * commonly needed fields.
+ * GGG wraps the character: {"character": {...}}. raw() returns the whole
+ * response as received, wrapper included; the convenience accessors read
+ * inside the `character` key.
  */
 readonly class Character
 {
     /**
-     * @param  array  $data  Raw character response data
+     * @param  array  $data  Raw character response, {"character": {...}}
      */
     public function __construct(
         private array $data,
@@ -24,7 +25,7 @@ readonly class Character
     /**
      * Create from a decoded API response array.
      *
-     * @param  array  $data  Decoded JSON from /character/{name}
+     * @param  array  $data  Decoded JSON from /character/{name}, wrapper included
      */
     public static function fromArray(array $data): self
     {
@@ -32,7 +33,7 @@ readonly class Character
     }
 
     /**
-     * The complete raw API response.
+     * The complete raw API response, {"character": {...}}.
      */
     public function raw(): array
     {
@@ -40,11 +41,21 @@ readonly class Character
     }
 
     /**
+     * The character object inside the response wrapper.
+     */
+    private function character(): array
+    {
+        $character = $this->data['character'] ?? null;
+
+        return is_array($character) ? $character : [];
+    }
+
+    /**
      * Character UUID.
      */
     public function id(): string
     {
-        return $this->data['id'] ?? '';
+        return $this->character()['id'] ?? '';
     }
 
     /**
@@ -52,7 +63,7 @@ readonly class Character
      */
     public function name(): string
     {
-        return $this->data['name'] ?? '';
+        return $this->character()['name'] ?? '';
     }
 
     /**
@@ -60,7 +71,7 @@ readonly class Character
      */
     public function class(): string
     {
-        return $this->data['class'] ?? '';
+        return $this->character()['class'] ?? '';
     }
 
     /**
@@ -68,7 +79,7 @@ readonly class Character
      */
     public function league(): ?string
     {
-        return $this->data['league'] ?? null;
+        return $this->character()['league'] ?? null;
     }
 
     /**
@@ -76,7 +87,7 @@ readonly class Character
      */
     public function level(): int
     {
-        return $this->data['level'] ?? 0;
+        return $this->character()['level'] ?? 0;
     }
 
     /**
@@ -84,7 +95,7 @@ readonly class Character
      */
     public function experience(): int
     {
-        return $this->data['experience'] ?? 0;
+        return $this->character()['experience'] ?? 0;
     }
 
     /**
@@ -92,7 +103,7 @@ readonly class Character
      */
     public function equipment(): array
     {
-        return $this->data['equipment'] ?? [];
+        return $this->character()['equipment'] ?? [];
     }
 
     /**
@@ -100,7 +111,7 @@ readonly class Character
      */
     public function inventory(): array
     {
-        return $this->data['inventory'] ?? [];
+        return $this->character()['inventory'] ?? [];
     }
 
     /**
@@ -108,7 +119,7 @@ readonly class Character
      */
     public function rucksack(): array
     {
-        return $this->data['rucksack'] ?? [];
+        return $this->character()['rucksack'] ?? [];
     }
 
     /**
@@ -116,7 +127,7 @@ readonly class Character
      */
     public function jewels(): array
     {
-        return $this->data['jewels'] ?? [];
+        return $this->character()['jewels'] ?? [];
     }
 
     /**
@@ -124,7 +135,7 @@ readonly class Character
      */
     public function passives(): array
     {
-        return $this->data['passives'] ?? [];
+        return $this->character()['passives'] ?? [];
     }
 
     /**
@@ -158,7 +169,7 @@ readonly class Character
     }
 
     /**
-     * Bandit choice (e.g. "kraityn", "alira", "oak", or "eramir").
+     * Bandit choice (e.g. "Kraityn", "Alira", "Oak", or "Eramir").
      */
     public function banditChoice(): ?string
     {

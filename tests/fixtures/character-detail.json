@@ -1,26 +1,51 @@
 {
-    "id": "aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44ee55ff66aa11bb22cc33dd44",
-    "name": "VaalSlamDancer",
+  "character": {
+    "id": "4124747963f8a9588d9464cedf981d4f42da371d5bbbdf550ecc54c50f16cca0",
+    "name": "MagicFindDotGG",
     "realm": "pc",
-    "class": "Occultist",
-    "league": "Standard",
-    "level": 100,
-    "experience": 4250334444,
+    "class": "Luminary",
+    "league": "Allflame",
+    "level": 95,
+    "experience": 3073586588,
     "equipment": [
-        {"id": "item1", "name": "Test Helm", "typeLine": "Hubris Circlet"}
+      {
+        "id": "144688384dfc4e33ddf4b6e15e282549ce65e552c99642647c963d0c27823149",
+        "name": "Blight Guardian",
+        "typeLine": "Divine Crown",
+        "baseType": "Divine Crown",
+        "inventoryId": "Helm",
+        "ilvl": 85,
+        "frameType": 2,
+        "w": 2,
+        "h": 2,
+        "x": 0,
+        "y": 0
+      }
     ],
     "inventory": [],
-    "rucksack": [],
     "jewels": [],
+    "guardian": [],
+    "active_mercenary_index": 1,
     "passives": {
-        "hashes": [4036, 4367, 12926],
-        "hashes_ex": [],
-        "mastery_effects": {
-            "56128": 42540
-        },
-        "skill_overrides": [],
-        "bandit_choice": "Eramir",
-        "pantheon_major": "TheBrineKing",
-        "pantheon_minor": "Abberath"
+      "hashes": [
+        918,
+        1593,
+        1977,
+        3452
+      ],
+      "hashes_ex": [],
+      "mastery_effects": {
+        "47197": 23621,
+        "25535": 30612
+      },
+      "skill_overrides": [],
+      "bandit_choice": "Eramir",
+      "pantheon_major": "TheBrineKing",
+      "pantheon_minor": "Abberath",
+      "jewel_data": {}
+    },
+    "metadata": {
+      "version": "3.29.3b"
     }
+  }
 }
