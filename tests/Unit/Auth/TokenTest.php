@@ -4,6 +4,7 @@ namespace Braseidon\VaalApi\Tests\Unit\Auth;
 
 use Braseidon\VaalApi\Auth\Token;
 use Braseidon\VaalApi\Enums\Scope;
+use League\OAuth2\Client\Token\AccessToken;
 use PHPUnit\Framework\TestCase;
 
 class TokenTest extends TestCase
@@ -120,5 +121,38 @@ class TokenTest extends TestCase
 
         $this->assertFalse($token->hasScope(Scope::Profile));
         $this->assertFalse($token->hasScope('account:profile'));
+    }
+
+    public function test_has_scope_matches_whole_scopes_only(): void
+    {
+        // service:leagues is a prefix of service:leagues:ladder, and neither implies the other.
+        $ladderOnly = Token::fromArray(['access_token' => 'test', 'scope' => 'service:leagues:ladder']);
+        $leaguesOnly = Token::fromArray(['access_token' => 'test', 'scope' => 'service:leagues']);
+
+        $this->assertFalse($ladderOnly->hasScope(Scope::ServiceLeagues));
+        $this->assertTrue($ladderOnly->hasScope(Scope::ServiceLeaguesLadder));
+        $this->assertFalse($leaguesOnly->hasScope(Scope::ServiceLeaguesLadder));
+        $this->assertTrue($leaguesOnly->hasScope(Scope::ServiceLeagues));
+    }
+
+    public function test_from_access_token_keeps_every_field_ggg_sends(): void
+    {
+        $accessToken = new AccessToken([
+            'access_token' => 'new-access-token',
+            'refresh_token' => 'new-refresh-token',
+            'expires' => 1900000000,
+            'scope' => 'account:profile account:characters',
+            'username' => 'Exile#1234',
+            'sub' => 'uuid-123',
+        ]);
+
+        $token = Token::fromAccessToken($accessToken);
+
+        $this->assertSame('new-access-token', $token->accessToken);
+        $this->assertSame('new-refresh-token', $token->refreshToken);
+        $this->assertSame(1900000000, $token->expiresAt);
+        $this->assertSame('account:profile account:characters', $token->scope);
+        $this->assertSame('Exile#1234', $token->username);
+        $this->assertSame('uuid-123', $token->sub);
     }
 }
