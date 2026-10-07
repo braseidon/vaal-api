@@ -8,6 +8,7 @@ use Braseidon\VaalApi\Dto\Character;
 use Braseidon\VaalApi\Dto\CharacterSummary;
 use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -87,6 +88,19 @@ class CharacterResourceTest extends TestCase
 
         $this->assertSame(['character'], array_keys($raw));
         $this->assertSame('Allflame', $raw['character']['league']);
+    }
+
+    /**
+     * GGG documents Get Character's `character` as nullable. That is a miss
+     * the caller handles like a 404, not a malformed response.
+     */
+    public function test_get_throws_not_found_for_a_null_character(): void
+    {
+        $client = $this->createClientWithMock([new Response(200, [], json_encode(['character' => null]))]);
+
+        $this->expectException(ResourceNotFoundException::class);
+
+        $client->characters()->get('MagicFindDotGG');
     }
 
     public function test_get_fails_loud_when_the_character_key_is_missing(): void

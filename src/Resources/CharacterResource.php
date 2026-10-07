@@ -7,6 +7,7 @@ use Braseidon\VaalApi\Dto\Character;
 use Braseidon\VaalApi\Dto\CharacterSummary;
 use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 
 /**
  * Character endpoints.
@@ -65,6 +66,7 @@ class CharacterResource
      *
      * @param  string  $name  Character name
      *
+     * @throws ResourceNotFoundException When GGG answers with `"character": null`, its documented miss
      * @throws \UnexpectedValueException When the response has no "character" object
      */
     public function get(string $name): Character
@@ -75,6 +77,10 @@ class CharacterResource
         $response = $this->client->get($path);
 
         $data = $response->data();
+
+        if (array_key_exists('character', $data) && $data['character'] === null) {
+            throw new ResourceNotFoundException('GET '.$path.' found no character.', $response->status(), responseBody: $data);
+        }
 
         if (! isset($data['character']) || ! is_array($data['character'])) {
             throw new \UnexpectedValueException('GET '.$path.' returned no "character" object.');

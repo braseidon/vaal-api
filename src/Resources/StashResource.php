@@ -9,6 +9,7 @@ use Braseidon\VaalApi\Dto\StashTab;
 use Braseidon\VaalApi\Dto\StashTabSummary;
 use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Exceptions\VaalApiException;
 use Closure;
 
@@ -59,12 +60,20 @@ class StashResource
      *
      * @param  string  $stashId  10-character hex stash ID
      * @param  string|null  $substashId  Optional substash ID for nested tabs
+     *
+     * @throws ResourceNotFoundException When GGG answers with no tab (`"stash": null`)
      */
     public function get(string $stashId, ?string $substashId = null): StashTab
     {
         $this->client->requireScope(Scope::Stashes, 'StashResource');
 
-        return self::tab($this->client->get($this->tabPath($stashId, $substashId)));
+        $tab = self::tab($this->client->get($this->tabPath($stashId, $substashId)));
+
+        if ($tab instanceof ResourceNotFoundException) {
+            throw $tab;
+        }
+
+        return $tab;
     }
 
     /**
@@ -76,7 +85,7 @@ class StashResource
      * child of a folder, map or unique tab. Results keep the caller's keys and
      * order. A tab that fails (404, 429 given up on, connection failure, ...)
      * lands in `failures` under its key with the exception get() would have
-     * thrown; the others still come back.
+     * thrown, a response with no tab included; the others still come back.
      *
      * @param  array<array-key, mixed>  $stashes  Each a stash id string or an array{0: string, 1?: string|null} pair; the shape is checked at runtime
      * @param  (Closure(array-key, StashTab|VaalApiException): void)|null  $onResult  Called as each tab settles, in landing order
@@ -104,15 +113,33 @@ class StashResource
             $onResult($key, $result instanceof ApiResponse ? self::tab($result) : $result);
         });
 
-        return new BatchResult(
-            array_map(self::tab(...), $batch->results),
-            $batch->failures,
-        );
+        $results = [];
+        $failures = [];
+
+        foreach (array_keys($paths) as $key) {
+            $tab = array_key_exists($key, $batch->results) ? self::tab($batch->results[$key]) : $batch->failures[$key];
+
+            if ($tab instanceof StashTab) {
+                $results[$key] = $tab;
+            } else {
+                $failures[$key] = $tab;
+            }
+        }
+
+        return new BatchResult($results, $failures);
     }
 
-    private static function tab(ApiResponse $response): StashTab
+    /**
+     * The tab a response carries. GGG documents `stash` as nullable, so a
+     * response without one is a miss, never an empty tab.
+     */
+    private static function tab(ApiResponse $response): StashTab|ResourceNotFoundException
     {
-        return StashTab::fromArray($response->data()['stash'] ?? []);
+        $stash = $response->data()['stash'] ?? null;
+
+        return is_array($stash)
+            ? StashTab::fromArray($stash)
+            : new ResourceNotFoundException('The response has no "stash" object.', $response->status(), responseBody: $response->data());
     }
 
     private function tabPath(string $stashId, ?string $substashId): string

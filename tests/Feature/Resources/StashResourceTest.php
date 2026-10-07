@@ -6,6 +6,7 @@ use Braseidon\VaalApi\Auth\Token;
 use Braseidon\VaalApi\Client\ApiClient;
 use Braseidon\VaalApi\Enums\Realm;
 use Braseidon\VaalApi\Enums\Scope;
+use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Tests\Support\MocksInnermostHandler;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -137,5 +138,65 @@ class StashResourceTest extends TestCase
             ['/stash/Hardcore%20Mirage'],
             $this->pathsSent(fn (ApiClient $c) => $c->stashes('Hardcore Mirage')->list()),
         );
+    }
+
+    /**
+     * A client whose network end answers each request with the next body.
+     *
+     * @param  array<int, array<string, mixed>>  $bodies
+     */
+    private function clientAnswering(array $bodies): ApiClient
+    {
+        $client = new ApiClient([
+            'client_id' => 'test-client',
+            'rate_limit' => ['strategy' => 'exception', 'auto_retry' => false],
+        ]);
+        $client->withToken(Token::fromArray([
+            'access_token' => 'test-access-token',
+            'refresh_token' => 'test-refresh-token',
+            'expires_at' => time() + 3600,
+            'scope' => implode(' ', Scope::all()),
+        ]));
+
+        $attempts = [];
+        $this->mockInnermostHandler($client, array_map(fn (array $body) => new Response(200, [], json_encode($body)), $bodies), $attempts);
+
+        return $client;
+    }
+
+    /**
+     * GGG documents Get Stash's `stash` as nullable. A tab that is not there
+     * must not come back as an empty tab, which Stash Value would price at 0.
+     */
+    public function test_get_throws_not_found_for_a_null_stash(): void
+    {
+        $client = $this->clientAnswering([['stash' => null]]);
+
+        $this->expectException(ResourceNotFoundException::class);
+
+        $client->stashes('Mirage')->get('a01ab2c0b4');
+    }
+
+    public function test_get_many_files_a_null_stash_under_failures_and_keeps_the_rest_in_order(): void
+    {
+        $client = $this->clientAnswering([
+            ['stash' => ['id' => 'aaa', 'name' => 'A', 'type' => 'NormalStash', 'items' => []]],
+            ['stash' => null],
+            ['stash' => ['id' => 'ccc', 'name' => 'C', 'type' => 'NormalStash', 'items' => []]],
+        ]);
+        $settled = [];
+
+        $batch = $client->stashes('Mirage')->getMany(
+            ['a' => 'aaa', 'b' => 'bbb', 'c' => 'ccc'],
+            function (int|string $key, mixed $result) use (&$settled): void {
+                $settled[$key] = $result::class;
+            },
+        );
+
+        $this->assertSame(['a', 'c'], array_keys($batch->results));
+        $this->assertSame('aaa', $batch->results['a']->id());
+        $this->assertSame(['b'], array_keys($batch->failures));
+        $this->assertInstanceOf(ResourceNotFoundException::class, $batch->failures['b']);
+        $this->assertSame(ResourceNotFoundException::class, $settled['b']);
     }
 }
