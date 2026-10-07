@@ -470,6 +470,32 @@ class ApiClientTest extends TestCase
         return $client;
     }
 
+    /**
+     * GGG requires `OAuth {clientId}/{version} (contact: {contact})` on every
+     * request, the automatic refresh's call to /oauth/token included.
+     */
+    public function test_the_token_refresh_sends_the_configured_user_agent(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new MockHandler([new Response(400, ['Content-Type' => 'application/json'], '{"error":"invalid_grant"}')]));
+        $stack->push(Middleware::history($history));
+
+        $client = new ApiClient([
+            'client_id' => 'test-client',
+            'user_agent' => ['version' => '2.3.4', 'contact' => 'dev@example.com'],
+        ]);
+        $client->getAuthProvider()->setHttpClient(new GuzzleClient(['handler' => $stack, 'http_errors' => false]));
+        $client->withToken($this->createValidToken());
+
+        try {
+            $client->refreshToken();
+        } catch (AuthenticationException) {
+            // expected: only the request matters here
+        }
+
+        $this->assertSame('OAuth test-client/2.3.4 (contact: dev@example.com)', $history[0]['request']->getHeaderLine('User-Agent'));
+    }
+
     public function test_refresh_failure_callback_receives_the_original_exception(): void
     {
         $client = $this->createClientWithFailingRefresh(400);

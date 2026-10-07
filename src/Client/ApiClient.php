@@ -454,6 +454,8 @@ class ApiClient
                 'clientId' => $this->config['client_id'] ?? '',
                 'clientSecret' => $this->config['client_secret'] ?? '',
                 'redirectUri' => $this->config['redirect_uri'] ?? '',
+                'userAgentVersion' => $this->config['user_agent']['version'] ?? '1.0.0',
+                'userAgentContact' => $this->config['user_agent']['contact'] ?? '',
             ]);
         }
 
