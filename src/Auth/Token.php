@@ -22,13 +22,27 @@ readonly class Token
      * @param  string|null  $sub  GGG account UUID (stable identifier)
      */
     public function __construct(
-        public string $accessToken,
-        public string $refreshToken,
+        #[\SensitiveParameter] public string $accessToken,
+        #[\SensitiveParameter] public string $refreshToken,
         public int $expiresAt,
         public string $scope,
         public ?string $username = null,
         public ?string $sub = null,
     ) {}
+
+    /**
+     * What var_dump(), print_r() and dump() show: both token strings masked,
+     * so a debug dump or a log line that carries the object leaks neither.
+     *
+     * @return array<string, mixed>
+     */
+    public function __debugInfo(): array
+    {
+        return array_merge($this->toArray(), [
+            'access_token' => '[redacted]',
+            'refresh_token' => '[redacted]',
+        ]);
+    }
 
     /**
      * Whether the access token has expired.
@@ -98,7 +112,7 @@ readonly class Token
      *     sub?: string|null,
      * } $data
      */
-    public static function fromArray(array $data): self
+    public static function fromArray(#[\SensitiveParameter] array $data): self
     {
         return new self(
             accessToken: $data['access_token'],

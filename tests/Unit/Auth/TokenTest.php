@@ -155,4 +155,34 @@ class TokenTest extends TestCase
         $this->assertSame('Exile#1234', $token->username);
         $this->assertSame('uuid-123', $token->sub);
     }
+
+    public function test_debug_output_masks_both_token_strings(): void
+    {
+        $token = new Token('secret-access', 'secret-refresh', time() + 3600, 'account:profile', 'Player#1234');
+
+        foreach ([print_r($token, true), $this->varDump($token)] as $output) {
+            $this->assertStringNotContainsString('secret-access', $output);
+            $this->assertStringNotContainsString('secret-refresh', $output);
+            $this->assertStringContainsString('Player#1234', $output);
+        }
+    }
+
+    public function test_the_token_strings_are_kept_out_of_stack_traces(): void
+    {
+        foreach ([[Token::class, '__construct', ['accessToken', 'refreshToken']], [Token::class, 'fromArray', ['data']]] as [$class, $method, $names]) {
+            foreach ((new \ReflectionMethod($class, $method))->getParameters() as $parameter) {
+                if (in_array($parameter->getName(), $names, true)) {
+                    $this->assertNotEmpty($parameter->getAttributes(\SensitiveParameter::class), "{$method}(\${$parameter->getName()})");
+                }
+            }
+        }
+    }
+
+    private function varDump(mixed $value): string
+    {
+        ob_start();
+        var_dump($value);
+
+        return (string) ob_get_clean();
+    }
 }
