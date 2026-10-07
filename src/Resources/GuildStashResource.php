@@ -38,9 +38,10 @@ class GuildStashResource
         $path = $this->buildPath().'/'.rawurlencode($this->league);
         $response = $this->client->get($path);
 
+        // GGG wraps the list: {"stashes": [...]}
         return array_map(
             fn (array $tab) => StashTabSummary::fromArray($tab),
-            $response->data()
+            $response->data()['stashes'] ?? []
         );
     }
 
@@ -64,7 +65,8 @@ class GuildStashResource
 
         $response = $this->client->get($path);
 
-        return StashTab::fromArray($response->data());
+        // GGG wraps the tab: {"stash": {...}}
+        return StashTab::fromArray($response->data()['stash'] ?? []);
     }
 
     /**
