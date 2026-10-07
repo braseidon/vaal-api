@@ -46,4 +46,19 @@ class CharacterSummaryTest extends TestCase
         $this->assertSame('Occultist', $array['class']);
         $this->assertSame(100, $array['level']);
     }
+
+    public function test_to_array_round_trips_through_from_array(): void
+    {
+        // The app caches toArray() output and rebuilds the DTO with fromArray() (GggApiService::characters)
+        foreach ($this->fixture['characters'] as $entry) {
+            $char = CharacterSummary::fromArray($entry);
+            $again = CharacterSummary::fromArray($char->toArray());
+
+            $this->assertEquals($char, $again);
+        }
+
+        $current = CharacterSummary::fromArray(CharacterSummary::fromArray($this->fixture['characters'][1])->toArray());
+        $this->assertTrue($current->current);
+        $this->assertSame('Mirage', $current->league);
+    }
 }
