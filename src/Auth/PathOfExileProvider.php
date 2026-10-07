@@ -2,6 +2,7 @@
 
 namespace Braseidon\VaalApi\Auth;
 
+use GuzzleHttp\Exception\BadResponseException;
 use League\OAuth2\Client\Provider\AbstractProvider;
 use League\OAuth2\Client\Provider\Exception\IdentityProviderException;
 use League\OAuth2\Client\Token\AccessToken;
@@ -43,6 +44,51 @@ class PathOfExileProvider extends AbstractProvider
     public function getBaseAccessTokenUrl(array $params): string
     {
         return 'https://www.pathofexile.com/oauth/token';
+    }
+
+    /**
+     * Token revocation URL (RFC 7009).
+     */
+    public function getBaseRevokeTokenUrl(): string
+    {
+        return 'https://www.pathofexile.com/oauth/token/revoke';
+    }
+
+    /**
+     * Revoke a token at GGG, so it stops working before it expires.
+     *
+     * GGG accepts this only from a client granted the `oauth:revoke` scope.
+     * Revoking a refresh token per RFC 7009 also ends the grant behind it.
+     *
+     * @param  string  $token  The access or refresh token to revoke
+     * @param  string|null  $tokenTypeHint  "access_token" or "refresh_token"
+     *
+     * @throws IdentityProviderException When GGG refuses the request
+     */
+    public function revokeToken(#[\SensitiveParameter] string $token, ?string $tokenTypeHint = null): void
+    {
+        $params = array_filter([
+            'client_id' => $this->clientId,
+            'client_secret' => $this->clientSecret,
+            'token' => $token,
+            'token_type_hint' => $tokenTypeHint,
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $request = $this->createRequest('POST', $this->getBaseRevokeTokenUrl(), null, [
+            'headers' => ['content-type' => 'application/x-www-form-urlencoded'],
+            'body' => http_build_query($params, '', '&', PHP_QUERY_RFC3986),
+        ]);
+
+        try {
+            $response = $this->getResponse($request);
+        } catch (BadResponseException $e) {
+            $response = $e->getResponse();
+        }
+
+        // A success has no body (RFC 7009 § 2.2), so only an error is parsed.
+        if ($response->getStatusCode() >= 400) {
+            $this->checkResponse($response, json_decode((string) $response->getBody(), true));
+        }
     }
 
     /**
