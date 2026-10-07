@@ -633,6 +633,85 @@ class ApiClientTest extends TestCase
         $client->get('/profile');
     }
 
+    // ---------------------------------------------------------------
+    // Refresh guard
+    // ---------------------------------------------------------------
+
+    /**
+     * Point the client's OAuth provider at queued token-endpoint responses.
+     *
+     * @param  Response[]  $responses
+     */
+    private function stubTokenEndpoint(ApiClient $client, array $responses): void
+    {
+        $client->getAuthProvider()->setHttpClient(new GuzzleClient([
+            'handler' => HandlerStack::create(new MockHandler($responses)),
+            'http_errors' => false,
+        ]));
+    }
+
+    private function expiringToken(string $access = 'old-access', string $refresh = 'old-refresh'): Token
+    {
+        return Token::fromArray([
+            'access_token' => $access,
+            'refresh_token' => $refresh,
+            'expires_at' => time() + 60,
+            'scope' => implode(' ', Scope::all()),
+        ]);
+    }
+
+    public function test_the_guard_runs_around_the_refresh_and_the_client_keeps_its_result(): void
+    {
+        $client = $this->createClientWithMock([]);
+        $client->withToken($this->expiringToken());
+        $this->stubTokenEndpoint($client, [new Response(200, ['Content-Type' => 'application/json'], json_encode([
+            'access_token' => 'new-access',
+            'refresh_token' => 'new-refresh',
+            'expires_in' => 3600,
+            'scope' => 'account:profile',
+        ]))]);
+        $steps = [];
+
+        $client->guardTokenRefresh(function (\Closure $refresh) use (&$steps): Token {
+            $steps[] = 'lock';
+            $token = $refresh();
+            $steps[] = 'unlock';
+
+            return $token;
+        });
+
+        $token = $client->refreshToken();
+
+        $this->assertSame(['lock', 'unlock'], $steps);
+        $this->assertSame('new-access', $token->accessToken);
+        $this->assertSame('new-access', $client->getToken()->accessToken);
+    }
+
+    /**
+     * The guard found a token another process already stored: no refresh is
+     * sent (the empty token-endpoint queue would throw), and the next request
+     * carries the stored token.
+     */
+    public function test_an_automatic_refresh_uses_the_token_the_guard_returns(): void
+    {
+        $history = [];
+        $client = $this->createClientWithMock([new Response(200, [], json_encode(['ok' => true]))], [], $history);
+        $client->withToken($this->expiringToken());
+        $this->stubTokenEndpoint($client, []);
+
+        $client->guardTokenRefresh(fn (\Closure $refresh): Token => Token::fromArray([
+            'access_token' => 'stored-access',
+            'refresh_token' => 'stored-refresh',
+            'expires_at' => time() + 7200,
+            'scope' => implode(' ', Scope::all()),
+        ]));
+
+        $client->get('/profile');
+
+        $this->assertSame('Bearer stored-access', $history[0]['request']->getHeaderLine('Authorization'));
+        $this->assertSame('stored-refresh', $client->getToken()->refreshToken);
+    }
+
     public function test_valid_token_does_not_trigger_refresh(): void
     {
         $client = $this->createClientWithMock([

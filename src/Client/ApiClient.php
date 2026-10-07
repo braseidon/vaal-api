@@ -57,6 +57,8 @@ class ApiClient
 
     private ?Closure $onTokenRefreshFailure = null;
 
+    private ?Closure $tokenRefreshGuard = null;
+
     private ?PathOfExileProvider $authProvider = null;
 
     /** @var array|null Rate limit headers from the last API response */
@@ -163,6 +165,26 @@ class ApiClient
     public function onTokenRefreshFailure(Closure $callback): self
     {
         $this->onTokenRefreshFailure = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Run every token refresh, automatic or explicit, through a guard.
+     *
+     * GGG's refresh tokens are single use, so two processes that share one
+     * account must not refresh at the same time: the second one spends a
+     * refresh token GGG has already expired. The guard can hold a lock around
+     * the refresh and, once it holds it, return a token another process
+     * already stored instead of refreshing again (set it with withToken()
+     * first when the refresh should start from it). The client uses whatever
+     * token the guard returns.
+     *
+     * @param  Closure(Closure(): Token): Token  $guard  Receives the refresh and returns the token to use
+     */
+    public function guardTokenRefresh(Closure $guard): self
+    {
+        $this->tokenRefreshGuard = $guard;
 
         return $this;
     }
@@ -467,12 +489,29 @@ class ApiClient
      *
      * Triggers the onTokenRefresh callback on success, or the
      * onTokenRefreshFailure callback when the provider rejects the refresh.
+     * A guard set with guardTokenRefresh() runs around it.
      *
      * @return Token The new token
      *
      * @throws AuthenticationException If no token is set or refresh fails
      */
     public function refreshToken(): Token
+    {
+        if ($this->tokenRefreshGuard === null) {
+            return $this->sendTokenRefresh();
+        }
+
+        $this->token = ($this->tokenRefreshGuard)(fn (): Token => $this->sendTokenRefresh());
+
+        return $this->token;
+    }
+
+    /**
+     * Spend the current refresh token at GGG for a new token pair.
+     *
+     * @throws AuthenticationException If no token is set or refresh fails
+     */
+    private function sendTokenRefresh(): Token
     {
         if ($this->token === null) {
             throw new AuthenticationException('No token set for refresh');
