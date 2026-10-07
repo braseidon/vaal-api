@@ -306,6 +306,17 @@ class PublicApiClientTest extends TestCase
         $client->get('/character-window/get-items');
     }
 
+    public function test_an_error_object_without_a_message_still_throws_the_status_exception(): void
+    {
+        $attempts = [];
+        $client = $this->createClient([$this->json(400, ['error' => ['code' => 3]])], $attempts);
+
+        $this->expectException(InvalidRequestException::class);
+        $this->expectExceptionMessage('{"code":3}');
+
+        $client->get('/character-window/get-items');
+    }
+
     public function test_the_message_falls_back_to_the_status_when_the_body_has_no_error(): void
     {
         $attempts = [];

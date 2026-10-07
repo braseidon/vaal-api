@@ -30,10 +30,28 @@ class ApiResponse
     {
         if ($this->decodedBody === null) {
             $body = (string) $this->response->getBody();
-            $this->decodedBody = json_decode($body, true) ?? [];
+            $decoded = json_decode($body, true);
+            $this->decodedBody = is_array($decoded) ? $decoded : [];
         }
 
         return $this->decodedBody;
+    }
+
+    /**
+     * The error message GGG sent with a non-2xx response.
+     *
+     * GGG's error shape is `{"error": {"code": int, "message": string}}`, but
+     * any part of it can be missing or another type, and an exception message
+     * must be a string.
+     *
+     * @param  string  $fallback  Message to use when the body carries none
+     */
+    public function errorMessage(string $fallback): string
+    {
+        $data = $this->data();
+        $message = $data['error']['message'] ?? $data['error'] ?? $data['message'] ?? $fallback;
+
+        return is_string($message) ? $message : (json_encode($message) ?: $fallback);
     }
 
     /**

@@ -167,13 +167,12 @@ class PathOfExileProvider extends AbstractProvider
         $statusCode = $response->getStatusCode();
 
         if ($statusCode >= 400) {
-            $message = $data['error_description']
-                ?? $data['error']
-                ?? $data['message']
-                ?? 'Unknown error';
+            $message = is_array($data)
+                ? $data['error_description'] ?? $data['error'] ?? $data['message'] ?? 'Unknown error'
+                : 'Unknown error';
 
             throw new IdentityProviderException(
-                $message,
+                is_string($message) ? $message : (json_encode($message) ?: 'Unknown error'),
                 $statusCode,
                 $data,
             );

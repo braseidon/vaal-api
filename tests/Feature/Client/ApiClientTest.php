@@ -222,6 +222,34 @@ class ApiClientTest extends TestCase
         }
     }
 
+    /**
+     * @return array<string, array{string, string}>
+     */
+    public static function malformedErrorBodies(): array
+    {
+        return [
+            'error object without a message' => ['{"error":{"code":3}}', '{"code":3}'],
+            'error message that is not a string' => ['{"error":{"code":3,"message":["a","b"]}}', '["a","b"]'],
+            'bare scalar body' => ['"oops"', 'HTTP 400'],
+            'bare number body' => ['42', 'HTTP 400'],
+        ];
+    }
+
+    #[DataProvider('malformedErrorBodies')]
+    public function test_a_malformed_error_body_still_throws_the_status_exception(string $body, string $message): void
+    {
+        $client = $this->createClientWithMock([new Response(400, [], $body)]);
+        $client->withToken($this->createValidToken());
+
+        try {
+            $client->get('/profile');
+            $this->fail('Expected InvalidRequestException');
+        } catch (InvalidRequestException $e) {
+            $this->assertSame($message, $e->getMessage());
+            $this->assertIsArray($e->getResponseBody());
+        }
+    }
+
     // ---------------------------------------------------------------
     // Rate Limit Handling
     // ---------------------------------------------------------------

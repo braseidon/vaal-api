@@ -149,7 +149,7 @@ class PublicApiClient
     {
         $status = $response->status();
         $data = $response->data();
-        $message = $data['error']['message'] ?? $data['error'] ?? "HTTP {$status}";
+        $message = $response->errorMessage("HTTP {$status}");
 
         match (true) {
             $status === 404 => throw new ResourceNotFoundException($message, $status, responseBody: $data),

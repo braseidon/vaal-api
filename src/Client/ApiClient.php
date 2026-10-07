@@ -1036,10 +1036,7 @@ class ApiClient
     {
         $status = $response->status();
         $data = $response->data();
-        $message = $data['error']['message']
-            ?? $data['error']
-            ?? $data['message']
-            ?? "HTTP {$status}";
+        $message = $response->errorMessage("HTTP {$status}");
 
         $rlHeaders = $response->rateLimitPolicy() === null
             ? null
