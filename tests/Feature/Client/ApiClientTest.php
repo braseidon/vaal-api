@@ -12,6 +12,7 @@ use Braseidon\VaalApi\Exceptions\ResourceNotFoundException;
 use Braseidon\VaalApi\Exceptions\ServerException;
 use Braseidon\VaalApi\Exceptions\VaalApiException;
 use Braseidon\VaalApi\Resources\Public\PublicApiClient;
+use Braseidon\VaalApi\Tests\Support\MocksInnermostHandler;
 use GuzzleHttp\Client as GuzzleClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -23,6 +24,8 @@ use PHPUnit\Framework\TestCase;
 
 class ApiClientTest extends TestCase
 {
+    use MocksInnermostHandler;
+
     /**
      * Create an ApiClient with a mocked Guzzle handler.
      *
@@ -128,6 +131,37 @@ class ApiClientTest extends TestCase
         $client->get('/profile');
 
         $this->assertSame('Bearer test-access-token', $history[0]['request']->getHeaderLine('Authorization'));
+    }
+
+    public function test_requests_go_to_the_api_host_when_no_base_url_is_set(): void
+    {
+        // Built through the constructor with no base_url, as GggApiService::buildConfig does
+        $client = new ApiClient(['client_id' => 'test-client']);
+        $client->withToken($this->createValidToken());
+        $attempts = [];
+        $this->mockInnermostHandler($client, [new Response(200, [], '{}')], $attempts);
+
+        $client->get('/profile');
+
+        $this->assertCount(1, $attempts);
+        $uri = $attempts[0]['request']->getUri();
+        $this->assertSame('https', $uri->getScheme());
+        $this->assertSame('api.pathofexile.com', $uri->getHost());
+        $this->assertSame('/profile', $uri->getPath());
+    }
+
+    public function test_the_base_url_config_replaces_the_api_host(): void
+    {
+        $client = new ApiClient(['client_id' => 'test-client', 'base_url' => 'https://mirror.example.test']);
+        $client->withToken($this->createValidToken());
+        $attempts = [];
+        $this->mockInnermostHandler($client, [new Response(200, [], '{}')], $attempts);
+
+        $client->get('/profile');
+
+        $this->assertCount(1, $attempts);
+        $this->assertSame('mirror.example.test', $attempts[0]['request']->getUri()->getHost());
+        $this->assertSame('/profile', $attempts[0]['request']->getUri()->getPath());
     }
 
     // ---------------------------------------------------------------
