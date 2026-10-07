@@ -157,6 +157,25 @@ class PathOfExileProviderTest extends TestCase
         }
     }
 
+    /**
+     * The league provider's default Guzzle client throws on a 4xx, unlike the
+     * mocks above, so the refusal arrives as a BadResponseException.
+     */
+    public function test_a_refused_revoke_throws_with_ggg_s_status_when_guzzle_throws_on_errors(): void
+    {
+        $this->provider->setHttpClient(new GuzzleClient(['handler' => HandlerStack::create(new MockHandler([
+            new Response(401, ['Content-Type' => 'application/json'], '{"error":"invalid_client"}'),
+        ]))]));
+
+        try {
+            $this->provider->revokeToken('the-access-token');
+            $this->fail('Expected IdentityProviderException');
+        } catch (IdentityProviderException $e) {
+            $this->assertSame(401, $e->getCode());
+            $this->assertSame('invalid_client', $e->getMessage());
+        }
+    }
+
     public function test_an_error_that_is_not_a_string_still_becomes_a_string_message(): void
     {
         $this->mockHttp([new Response(400, ['Content-Type' => 'application/json'], '{"error":{"code":3}}')]);
