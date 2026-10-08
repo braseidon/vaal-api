@@ -58,6 +58,21 @@ Rate limiting works in two layers:
 
 2. **Retry middleware** catches 429/503 responses that slip through pre-flight checks (e.g. on cold start when no state exists). Reads the `Retry-After` header and retries automatically.
 
+### Recording every response
+
+Pass an `on_response` closure to see each HTTP response the client receives, for a request log or metrics. It is called once per response in `get()`, `post()` and `getMany()`, for every status, and once per attempt the retry middleware sends, so a 429 and the 200 after it are two calls. A request that got no response (connection error, timeout) does not call it, and anything the closure throws is caught and ignored.
+
+```php
+$client = new ApiClient([
+    ...config('vaal-api'),
+    'on_response' => function (string $path, int $status, array $headers, float $seconds): void {
+        // $path: "/stash/Mirage/abc123" (no host, no query string)
+        // $headers: the response headers, name => list of values
+        // $seconds: that one attempt's transfer time
+    },
+]);
+```
+
 ### Sharing rate limit state between processes
 
 By default each `ApiClient` remembers rate limit state only for its own lifetime. An app that builds a client per web request or per queue job never sees the state a previous client learned, so pre-flight checks never fire and every process runs into the lockout on its own. Pass a `RateLimitStore` that all processes can read, scoped to one account:

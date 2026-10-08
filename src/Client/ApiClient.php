@@ -35,6 +35,7 @@ use GuzzleHttp\Exception\TransferException;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Pool;
+use GuzzleHttp\TransferStats;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
@@ -86,7 +87,15 @@ class ApiClient
      *     base_url?: string,
      *     public_url?: string,
      *     logger?: LoggerInterface,
+     *     on_response?: (Closure(string, int, array<string, list<string>>, float): void)|null,
      * } $config
+     *
+     * `on_response` is called once per HTTP response the client receives, with
+     * the request path (no host, no query string), the status, the response
+     * headers and that attempt's transfer time in seconds. Every status counts,
+     * and so does each attempt the retry middleware sends; a request that got
+     * no response (connection error, timeout) does not call it. Anything the
+     * closure throws is caught and ignored.
      */
     public function __construct(
         private readonly array $config = [],
@@ -114,7 +123,44 @@ class ApiClient
             'timeout' => $this->config['timeout'] ?? 12,
             'connect_timeout' => $this->config['connect_timeout'] ?? 5,
             'http_errors' => false,
+            'on_stats' => $this->buildResponseHook(),
         ]);
+    }
+
+    /**
+     * The `on_stats` request option that hands each response to `on_response`.
+     *
+     * Set once in the Guzzle client's defaults, so it reaches every request:
+     * get() and post(), each getMany() pool request, and every attempt the
+     * retry middleware sends (Guzzle fires `on_stats` per transfer). Null when
+     * no `on_response` is configured, which leaves the option unset.
+     */
+    private function buildResponseHook(): ?Closure
+    {
+        $onResponse = $this->config['on_response'] ?? null;
+
+        if (! $onResponse instanceof Closure) {
+            return null;
+        }
+
+        return static function (TransferStats $stats) use ($onResponse): void {
+            $response = $stats->getResponse();
+
+            if ($response === null) {
+                return;
+            }
+
+            try {
+                $onResponse(
+                    $stats->getEffectiveUri()->getPath(),
+                    $response->getStatusCode(),
+                    $response->getHeaders(),
+                    (float) ($stats->getTransferTime() ?? 0.0),
+                );
+            } catch (\Throwable) {
+                // A failing listener must not break the request or the batch
+            }
+        };
     }
 
     // ---------------------------------------------------------------
@@ -345,6 +391,9 @@ class ApiClient
     /**
      * Make an authenticated GET request.
      *
+     * Each response calls the `on_response` hook, a 429 the retry middleware
+     * retries included.
+     *
      * @param  string  $path  API path (e.g. "/profile", "/character")
      * @param  array  $query  Query parameters
      *
@@ -381,6 +430,9 @@ class ApiClient
      * that drew a 429 the remaining keys fail.
      *
      * Paths should share one rate limit policy (stash tab reads, for example).
+     *
+     * Every response of every round calls the `on_response` hook, so a key
+     * that drew a 429 and then a 200 reports both.
      *
      * @param  array<array-key, string>  $paths  API paths, keyed as the caller wants results keyed
      * @param  (Closure(array-key, ApiResponse|VaalApiException): void)|null  $onResult  Called as each key settles
