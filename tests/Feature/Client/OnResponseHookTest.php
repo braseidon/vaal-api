@@ -17,6 +17,8 @@ use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\RequestInterface;
+use Psr\Log\AbstractLogger;
+use Psr\Log\LoggerInterface;
 
 /**
  * The `on_response` config closure: one call per HTTP response the client
@@ -49,9 +51,10 @@ class OnResponseHookTest extends TestCase
     /**
      * @param  array<int, mixed>  $responses  Queued mock responses
      */
-    private function client(array $responses, bool $autoRetry = false, ?\Closure $onResponse = null): ApiClient
+    private function client(array $responses, bool $autoRetry = false, ?\Closure $onResponse = null, ?LoggerInterface $logger = null): ApiClient
     {
         $client = new ApiClient([
+            'logger' => $logger,
             'client_id' => 'test-client',
             'rate_limit' => [
                 'strategy' => 'callback',
@@ -241,6 +244,68 @@ class OnResponseHookTest extends TestCase
         $this->assertSame(['a', 'b', 'c'], $settled);
         $this->assertSame(['a', 'b', 'c'], array_keys($batch->results));
         $this->assertSame([], $batch->failures);
+    }
+
+    public function test_a_throwing_hook_logs_one_warning_per_throw_and_the_response_still_returns(): void
+    {
+        $logger = new class extends AbstractLogger
+        {
+            /** @var list<array{level: mixed, message: string, context: array<string, mixed>}> */
+            public array $records = [];
+
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                $this->records[] = ['level' => $level, 'message' => (string) $message, 'context' => $context];
+            }
+        };
+        $client = $this->client([
+            self::stashResponse(200),
+            self::stashResponse(200),
+        ], onResponse: function (): void {
+            throw new \RuntimeException('listener failed');
+        }, logger: $logger);
+
+        $first = $client->get('/stash/Mirage/abc123', ['substash' => 'true']);
+        $second = $client->get('/stash/Mirage/def456');
+
+        $this->assertTrue($first->isSuccessful());
+        $this->assertTrue($second->isSuccessful());
+        $this->assertCount(2, $logger->records);
+        $this->assertSame('warning', $logger->records[0]['level']);
+        $this->assertSame([
+            'exception' => \RuntimeException::class,
+            'message' => 'listener failed',
+            'path' => '/stash/Mirage/abc123',
+        ], $logger->records[0]['context']);
+        $this->assertSame('/stash/Mirage/def456', $logger->records[1]['context']['path']);
+    }
+
+    public function test_a_set_on_response_that_is_not_a_closure_throws_from_the_constructor(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('on_response');
+
+        new ApiClient(['client_id' => 'test-client', 'on_response' => 'strtoupper']);
+    }
+
+    public function test_the_transfer_time_of_the_attempt_reaches_the_hook(): void
+    {
+        $client = $this->client([self::stashResponse(200)]);
+
+        // MockHandler reports the `transfer_time` request option to on_stats.
+        $httpClient = (new \ReflectionProperty($client, 'httpClient'))->getValue($client);
+        $httpClient->getConfig('handler')->push(function (callable $handler): callable {
+            return function (RequestInterface $request, array $options) use ($handler) {
+                $options['transfer_time'] = 0.25;
+
+                return $handler($request, $options);
+            };
+        }, 'set_transfer_time');
+
+        $client->get('/stash/Mirage/abc123');
+
+        $this->assertCount(1, $this->calls);
+        $this->assertSame(0.25, $this->calls[0]['seconds']);
     }
 
     public function test_no_on_response_leaves_on_stats_unset(): void

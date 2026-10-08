@@ -95,7 +95,12 @@ class ApiClient
      * headers and that attempt's transfer time in seconds. Every status counts,
      * and so does each attempt the retry middleware sends; a request that got
      * no response (connection error, timeout) does not call it. Anything the
-     * closure throws is caught and ignored.
+     * closure throws is caught and logged as a warning when a `logger` is
+     * configured. A set `on_response` that is not a Closure throws
+     * InvalidArgumentException. Clients from `public()` and token refresh
+     * requests do not call it.
+     *
+     * @throws \InvalidArgumentException When `on_response` is set but is not a Closure
      */
     public function __construct(
         private readonly array $config = [],
@@ -139,11 +144,17 @@ class ApiClient
     {
         $onResponse = $this->config['on_response'] ?? null;
 
-        if (! $onResponse instanceof Closure) {
+        if ($onResponse === null) {
             return null;
         }
 
-        return static function (TransferStats $stats) use ($onResponse): void {
+        if (! $onResponse instanceof Closure) {
+            throw new \InvalidArgumentException('The on_response config value must be a Closure, got '.get_debug_type($onResponse));
+        }
+
+        $logger = $this->config['logger'] ?? null;
+
+        return static function (TransferStats $stats) use ($onResponse, $logger): void {
             $response = $stats->getResponse();
 
             if ($response === null) {
@@ -157,8 +168,16 @@ class ApiClient
                     $response->getHeaders(),
                     (float) ($stats->getTransferTime() ?? 0.0),
                 );
-            } catch (\Throwable) {
-                // A failing listener must not break the request or the batch
+            } catch (\Throwable $e) {
+                // A failing listener must not break the request or the batch,
+                // but it is not silent either
+                if ($logger instanceof LoggerInterface) {
+                    $logger->warning('on_response hook threw', [
+                        'exception' => $e::class,
+                        'message' => $e->getMessage(),
+                        'path' => $stats->getEffectiveUri()->getPath(),
+                    ]);
+                }
             }
         };
     }

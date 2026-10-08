@@ -60,7 +60,7 @@ Rate limiting works in two layers:
 
 ### Recording every response
 
-Pass an `on_response` closure to see each HTTP response the client receives, for a request log or metrics. It is called once per response in `get()`, `post()` and `getMany()`, for every status, and once per attempt the retry middleware sends, so a 429 and the 200 after it are two calls. A request that got no response (connection error, timeout) does not call it, and anything the closure throws is caught and ignored.
+Pass an `on_response` closure to see each HTTP response the client receives, for a request log or metrics. It is called once per response in `get()`, `post()` and `getMany()`, for every status, and once per attempt the retry middleware sends, so a 429 and the 200 after it are two calls. A request that got no response (connection error, timeout) does not call it, and neither do `public()` clients or token-refresh requests. Anything the closure throws is caught and logged as a warning when a `logger` is configured (exception class, message, request path); the request still returns. A value that is set but not a `Closure` throws `InvalidArgumentException` from the constructor.
 
 ```php
 $client = new ApiClient([
