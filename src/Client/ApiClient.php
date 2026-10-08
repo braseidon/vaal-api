@@ -172,11 +172,15 @@ class ApiClient
                 // A failing listener must not break the request or the batch,
                 // but it is not silent either
                 if ($logger instanceof LoggerInterface) {
-                    $logger->warning('on_response hook threw', [
-                        'exception' => $e::class,
-                        'message' => $e->getMessage(),
-                        'path' => $stats->getEffectiveUri()->getPath(),
-                    ]);
+                    try {
+                        $logger->warning('on_response hook threw', [
+                            'exception' => $e::class,
+                            'message' => $e->getMessage(),
+                            'path' => $stats->getEffectiveUri()->getPath(),
+                        ]);
+                    } catch (\Throwable) {
+                        // A broken logger must not break the request either
+                    }
                 }
             }
         };

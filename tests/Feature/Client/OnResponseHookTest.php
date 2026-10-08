@@ -280,6 +280,31 @@ class OnResponseHookTest extends TestCase
         $this->assertSame('/stash/Mirage/def456', $logger->records[1]['context']['path']);
     }
 
+    public function test_a_throwing_logger_does_not_break_get_or_get_many(): void
+    {
+        $logger = new class extends AbstractLogger
+        {
+            public function log($level, string|\Stringable $message, array $context = []): void
+            {
+                throw new \UnexpectedValueException('stream could not be opened');
+            }
+        };
+        $client = $this->client([
+            self::stashResponse(200),
+            self::stashResponse(200),
+            self::stashResponse(200),
+        ], onResponse: function (): void {
+            throw new \RuntimeException('listener failed');
+        }, logger: $logger);
+
+        $response = $client->get('/stash/Mirage/abc123');
+        $batch = $client->getMany(['a' => '/stash/Mirage/def456', 'b' => '/stash/Mirage/ghi789']);
+
+        $this->assertTrue($response->isSuccessful());
+        $this->assertSame(['a', 'b'], array_keys($batch->results));
+        $this->assertSame([], $batch->failures);
+    }
+
     public function test_a_set_on_response_that_is_not_a_closure_throws_from_the_constructor(): void
     {
         $this->expectException(\InvalidArgumentException::class);
